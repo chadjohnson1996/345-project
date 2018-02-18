@@ -85,6 +85,7 @@ load "simpleParser.scm"
     (cond
       ;if passed a null, returns null
       ((null? var) '())
+      ((number? var) var)
       ;calls fetchValue on the value half of stateList, and the index returned by checkList
       (else (fetchValue (cadr stateList) (checkList var (car stateList) 0))))))
 
@@ -174,11 +175,17 @@ load "simpleParser.scm"
       ((eq? operator '-) subtractHandler)
       ((eq? operator '*) multiplyHandler)
       ((eq? operator '/) divideHandler)
+      ((eq? operator '%) modHandler)
+      ((eq? operator '==) equalHandler)
+      ((eq? operator '!=) notEqualHandler)
+      ((eq? operator '>) greaterHandler)
+      ((eq? operator '<) lessHandler)
       ((eq? operator 'return) returnHandler)
       ((eq? operator 'if) ifHandler)
       ((eq? operator 'var) declareHandler)
       ((eq? operator 'while) whileHandler)
-      (else getstate))))
+      ((eq? operator '=) assignHandler)
+      (else getState))))
 
 
 (define sParser
@@ -188,9 +195,9 @@ load "simpleParser.scm"
     (cond
       ((null? element) element)
       ((not (list? element)) element)
-      ((not (list? (car element))) (car element))
+      ((not (list? (car element))) (getState (car element)))
       
-      ((equal? (oEval (car element)) '()) (sParser (cdr element)))
+      ((eq? (oEval (car element)) '()) (sParser (cdr element)))
       (else (oEval (car element))))))
 
      
