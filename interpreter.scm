@@ -47,10 +47,12 @@ load "simpleParser.scm"
     ;logic for running helpers
     (cond
       ;if passed a null, returns stateList
-      ((null? varPair) stateList)
+      ;((null? varPair) stateList)
+      ((null? varPair) '())
       ;this was a way to get updateState to accomplish two things, change stateList
       ;and return stateList - see 'done' definition for further info
-      ((equal? done varPair) stateList)
+      ;((equal? done varPair) stateList)
+      ((equal? done varPair) '())
       ;recursive call feeding updateList's output into updateState
       (else (updateState (list (updateList (car varPair) (cadr varPair) (car stateList) 0)))))))
 
@@ -184,9 +186,11 @@ load "simpleParser.scm"
     (define (oEval lis)
       ((getHandler (car lis)) (cdr lis)))
     (cond
+      ((null? element) element)
       ((not (list? element)) element)
+      ((not (list? (car element))) (car element))
       
-      ((equal? (oEval (car element)) '()) (sParser (cdr lis)))
+      ((equal? (oEval (car element)) '()) (sParser (cdr element)))
       (else (oEval (car element))))))
 
      
