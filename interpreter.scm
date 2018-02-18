@@ -1,3 +1,4 @@
+
 load "simpleParser.scm"
 ;use pretty big
 ;Griffin Saiia
@@ -142,14 +143,6 @@ load "simpleParser.scm"
       ((< (sParser (car lis)) (sParser (cadr lis))) #t)
       (else #f))))
 
-(define lessEqualHandler
-  (lambda (lis)
-    (or (lessHandler lis) (equalHandler lis))))
-
-(define greaterEqualHandler
-  (lambda (lis)
-    (or (greaterHandler lis) (equalHandler lis))))
-
 (define assignHandler
   (lambda (lis)
     (cond
@@ -188,8 +181,6 @@ load "simpleParser.scm"
       ((eq? operator '!=) notEqualHandler)
       ((eq? operator '>) greaterHandler)
       ((eq? operator '<) lessHandler)
-      ((eq? operator '>=) greaterEqualHandler)
-      ((eq? operator '<=) lessEqualHandler)
       ((eq? operator 'return) returnHandler)
       ((eq? operator 'if) ifHandler)
       ((eq? operator 'var) declareHandler)
@@ -201,14 +192,10 @@ load "simpleParser.scm"
 (define sParser
   (lambda (element)
     (define (oEval lis)
-      ((getHandler (car lis)) (cdr lis)))
+      ((getHandler(car lis)) (cdr lis)))
     (cond
       ((null? element) element)
       ((not (list? element)) element)
       ((not (list? (car element))) (getState (car element)))
-      
       ((eq? (oEval (car element)) '()) (sParser (cdr element)))
       (else (oEval (car element))))))
-
-     
-      
