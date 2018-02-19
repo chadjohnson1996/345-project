@@ -200,9 +200,7 @@
 (define whileHandler
   (lambda (lis)
     (cond
-      ((equal? (oEval (car lis)) #t) (whileHandler
-                                      (cdr
-                                                    (cons (oMutate (cadr lis)) lis))))
+      ((equal? (oEval (car lis)) #t) (whileHandler(cdr(cons (oMutate (cadr lis)) lis))))
       (else '()))))
 
 
