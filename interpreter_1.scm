@@ -1,13 +1,15 @@
-
-load "simpleParser.scm"
+(load "simpleParser.scm")
 ;use pretty big
-;Griffin Saiia
+;Griffin Saiia, Chad Johnson
 ;PLC Project 1
 
-(define test '((var x) (= x 10) (var y (+ (* 3 x) 5)) (while (!= (% y x) 3) (= y (+ y 1))) (if (> x y) (return x) (if (> (* x x) y) (return (* x x)) (if (> (* x (+ x x)) y) (return (* x (+ x x))) (return (- y 1)))))))
-
 ;variable storage
-(define stateList '(()()))
+(define stateList '((return true false)(() #t #f)))
+
+;creates the state
+(define createState
+  (lambda ()
+    '((return true false) (() #t #f))))
 
 (define emptyVar
   (lambda (var)
@@ -18,6 +20,7 @@ load "simpleParser.scm"
 (define done (list (void)))
 
 
+;state update and get
 
 ;whenever adding or updating variables
 ;takes varPair - a list whose first element is the variable name, and whose second is the value
@@ -87,39 +90,39 @@ load "simpleParser.scm"
       ;if passed a null, returns null
       ((null? var) '())
       ((number? var) var)
+      ((boolean? var) var)
       ;calls fetchValue on the value half of stateList, and the index returned by checkList
       (else (fetchValue (cadr stateList) (checkList var (car stateList) 0))))))
 
-(define ifHandler
-  (lambda (lis)
-    (cond
-      ((sParser (car lis)) (sParser (cadr lis)))
-      (else '()))))
-
+;
+;
+;expression evaluators
 (define addHandler
   (lambda (lis)
-    (+ (sParser (car lis)) (sParser (cadr lis)))))
+    (+ (oEval (car lis)) (oEval (cadr lis)))))
 
 (define subtractHandler
   (lambda (lis)
-    (- (sParser (car lis)) (sParser (cadr lis)))))
+    (cond
+      ((null? (cdr lis)) (- 0 (oEval (car lis))))
+      (else (- (oEval (car lis)) (oEval (cadr lis)))))))
 
 (define multiplyHandler
   (lambda (lis)
-    (* (sParser (car lis)) (sParser (cadr lis)))))
+    (* (oEval (car lis)) (oEval (cadr lis)))))
 
-(define divideHandle
+(define divideHandler
   (lambda (lis)
-    (/ (sParser (car lis)) (sParser (cadr lis)))))
+    (quotient (oEval (car lis)) (oEval (cadr lis)))))
 
 (define modHandler
   (lambda (lis)
-    (modulo (sParser (car lis)) (sParser (cadr lis)))))
+    (modulo (oEval (car lis)) (oEval (cadr lis)))))
 
 (define equalHandler
   (lambda (lis)
     (cond
-      ((equal? (sParser (car lis)) (sParser (cadr lis))) #t)
+      ((equal? (oEval (car lis)) (oEval (cadr lis))) #t)
       (else #f))))
 (define invertBool
   (lambda (val)
@@ -134,41 +137,85 @@ load "simpleParser.scm"
 (define greaterHandler
   (lambda (lis)
     (cond
-      ((> (sParser (car lis)) (sParser (cadr lis))) #t)
+      ((> (oEval (car lis)) (oEval (cadr lis))) #t)
       (else #f))))
 
 (define lessHandler
   (lambda (lis)
     (cond
-      ((< (sParser (car lis)) (sParser (cadr lis))) #t)
+      ((< (oEval (car lis)) (oEval (cadr lis))) #t)
       (else #f))))
+
+(define lessEqualHandler
+  (lambda (lis)
+    (cond
+      ((or (lessHandler lis) (equalHandler lis)) #t)
+      (else #f))))
+
+(define greaterEqualHandler
+  (lambda (lis)
+    (cond
+      ((or (greaterHandler lis) (equalHandler lis)) #t)
+      (else #f))))
+
+
+(define andHandler
+  (lambda (lis)
+    (and (oEval (car lis)) (oEval (cadr lis)))))
+
+(define orHandler
+  (lambda (lis)
+    (or (oEval (car lis)) (oEval (cadr lis)))))
+
+;
+;state mutators
+;
+;handles if operator
+(define ifHandler
+  (lambda (lis)
+    (cond
+      ((oEval (car lis)) (oMutate (cadr lis)))
+      ((not (null? (cddr lis))) (oMutate (caddr lis)))
+      (else '()))))
+
 
 (define assignHandler
   (lambda (lis)
     (cond
-      ((equal? (getState (car lis)) done) error)
-      (else (updateState (cons (car lis) (cons (sParser (cdr lis)) '())))))))
-    
+      ((equal? (getState (car lis)) done) (error "Variable cannot be assigned to before declaration"))
+      ((list? (cadr lis)) (updateState (cons (car lis) (cons (oEval (cadr lis)) '()))))
+      (else (updateState (cons (car lis) (cons (oEval ( cadr lis)) '())))))))
+
 
 (define declareHandler
   (lambda (lis)
     (cond
       ((null? (cdr lis)) (updateState (emptyVar (car lis))))
-      (else (updateState (cons (car lis) (cons (sParser (cadr lis)) '())))))))
+      (else (updateState (cons (car lis) (cons (oEval (cadr lis)) '())))))))
 
 (define returnHandler
   (lambda (lis)
-    (sParser lis)))
+    (updateState(list 'return (oEval (car lis))))))
 
 (define whileHandler
   (lambda (lis)
     (cond
-      ((equal? (sParser (car lis)) #t) (begin
-                                      (sParser (cadr lis))
-                                      (whileHandler lis)))
+      ((equal? (oEval (car lis)) #t) (whileHandler
+                                      (cdr
+                                                    (cons (oMutate (cadr lis)) lis))))
       (else '()))))
 
-    
+
+(define getMutator
+  (lambda (operator)
+    (cond
+      ((eq? operator 'return) returnHandler)
+      ((eq? operator 'if) ifHandler)
+      ((eq? operator 'var) declareHandler)
+      ((eq? operator 'while) whileHandler)
+      ((eq? operator '=) assignHandler)
+      (else (error "Invalid state")))))
+
 (define getHandler
   (lambda (operator)
     (cond
@@ -181,21 +228,52 @@ load "simpleParser.scm"
       ((eq? operator '!=) notEqualHandler)
       ((eq? operator '>) greaterHandler)
       ((eq? operator '<) lessHandler)
-      ((eq? operator 'return) returnHandler)
-      ((eq? operator 'if) ifHandler)
-      ((eq? operator 'var) declareHandler)
-      ((eq? operator 'while) whileHandler)
-      ((eq? operator '=) assignHandler)
+      ((eq? operator '>=) greaterEqualHandler)
+      ((eq? operator '<=) lessEqualHandler)
+      ((eq? operator '&&) andHandler)
+      ((eq? operator '||) orHandler)
+      ((eq? operator '!) invertBool)
       (else getState))))
 
 
-(define sParser
-  (lambda (element)
-    (define (oEval lis)
-      ((getHandler(car lis)) (cdr lis)))
+(define sInterpreter
+  (lambda (parsed)
     (cond
-      ((null? element) element)
-      ((not (list? element)) element)
-      ((not (list? (car element))) (getState (car element)))
-      ((eq? (oEval (car element)) '()) (sParser (cdr element)))
-      (else (oEval (car element))))))
+      ((not (null? (getState 'return))) (getState 'return))
+      ((null? parsed) (getState 'return))
+      (else (sInterpreter (cdr (cons (oMutate (car parsed)) (cdr parsed) )))))))
+
+(define oMutate
+  (lambda (lis)
+    ((getMutator (car lis)) (cdr lis))))
+
+(define oEval
+  (lambda (lis)
+    (cond
+      ((null? lis) lis)
+      ((not (list? lis)) (getState lis))
+      ((null? (cddr lis)) ((getHandler (car lis)) (list (oEval (cadr lis)))))
+      (else ((getHandler (car lis)) (list (oEval (cadr lis)) (oEval (caddr lis))))))))
+
+(define maskReturn
+  (lambda (val)
+    (cond
+      ((eq? val #t) 'true)
+      ((eq? val #f) 'false)
+      (else val))))
+
+(define fileInterpreter
+  (lambda (fileName)
+    (maskReturn (sInterpreter (parser fileName)))))
+
+
+;test cases
+
+(define testIf '(if (> (* x x) y) (return (* x x))))
+
+(define test '((var x) (= x 10) (var y (+ (* 3 x) 5)) (while (!= (% y x) 3)
+  (= y (+ y 1))) (if (> x y) (return x) (if (> (* x x) y) (return (* x x)) (if (> (* x (+ x x)) y)
+    (return (* x (+ x x))) (return (- y 1)))))))
+
+(define whileTest '((var x) (= x 10) (var y (+ (* 3 x) 5)) (while (!= (% y x) 3)
+  (= y (+ y 1)))))
