@@ -202,7 +202,7 @@
       ((eq? val #f) 'false)
       (else val))))
 
-(define fileInterpreter
+(define interpret
   (lambda (fileName)
     (maskReturn (sInterpreter (createState) (parser fileName)))))
 
