@@ -12,134 +12,138 @@
   (lambda (var)
     (cons var '(()))))
 
-;(void) abstraction - (set! x x) returns #<void> as output
-;done allows me to check for that cleanly
-(define done (list (void)))
-
 (define getState
+  (lambda (state key)
+    (cond
+      ((and (null? (getStateNoCheckAssign state key)) (not (equal? key 'return))) (error "Variable must be assigned to before reference"))
+      (else (getStateNoCheckAssign state key)))))
+;gets state without checking assignment
+(define getStateNoCheckAssign
   (lambda (state key)
     (cond
       ((number? key) key)
       ((boolean? key) key)
-      ((null? (car state)) (error "Variable must be assigned to before reference"))
+      ((null? (car state)) (error "Variable must be declared before reference"))
       ((equal? (caar state) key) (caadr state))
-      (else (getState (list (cdar state) (cdadr state)) key)))))
+      (else (getStateNoCheckAssign (list (cdar state) (cdadr state)) key)))))
 
 (define updateState
   (lambda (state lis)
     (cond
       ((null? (car state)) (list (cons (car lis) (car state)) (cons (cadr lis) (cadr state))))
       ((equal? (caar state) (car lis)) (list (cons (car lis) (car state)) (cons (cadr lis) (cadr state))))
-      (else (list (cons (caar state) (updateState (list (cdar state) (cdadr state)))))))))
+      (else (list (cons (caar state) (car (updateState (list (cdar state) (cdr (cadr state))) lis))) (cons (caadr state) (cadr (updateState (list (cdar state) (cdr (cadr state))) lis))))))))
       
 ;state update and get
 
 ;expression evaluators
 (define addHandler
-  (lambda (lis)
-    (+ (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (+ (oEval state (car lis)) (oEval state (cadr lis)))))
 
 (define subtractHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((null? (cdr lis)) (- 0 (oEval (car lis))))
-      (else (- (oEval (car lis)) (oEval (cadr lis)))))))
+      ((null? (cdr lis)) (- 0 (oEval state (car lis))))
+      (else (- (oEval state (car lis)) (oEval state (cadr lis)))))))
 
 (define multiplyHandler
-  (lambda (lis)
-    (* (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (* (oEval state (car lis)) (oEval state (cadr lis)))))
 
 (define divideHandler
-  (lambda (lis)
-    (quotient (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (quotient (oEval state (car lis)) (oEval state (cadr lis)))))
 
 (define modHandler
-  (lambda (lis)
-    (modulo (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (modulo (oEval state (car lis)) (oEval state (cadr lis)))))
 
 (define equalHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((equal? (oEval (car lis)) (oEval (cadr lis))) #t)
+      ((equal? (oEval state (car lis)) (oEval state (cadr lis))) #t)
       (else #f))))
 (define invertBool
-  (lambda (val)
+  (lambda (state val)
     (cond
-      ((eq? val #t) #f)
+      ((eq? (oEval state (car val)) #t) #f)
       (else #t))))
 
 (define notEqualHandler
-  (lambda (lis)
-    (invertBool (equalHandler lis))))
+  (lambda (state lis)
+    (cond
+      ((equalHandler state lis) #f)
+      (else #t))))
 
 (define greaterHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((> (oEval (car lis)) (oEval (cadr lis))) #t)
+      ((> (oEval state (car lis)) (oEval state (cadr lis))) #t)
       (else #f))))
 
 (define lessHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((< (oEval (car lis)) (oEval (cadr lis))) #t)
+      ((< (oEval state (car lis)) (oEval state (cadr lis))) #t)
       (else #f))))
 
 (define lessEqualHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((or (lessHandler lis) (equalHandler lis)) #t)
+      ((or (lessHandler state lis) (equalHandler state lis)) #t)
       (else #f))))
 
 (define greaterEqualHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((or (greaterHandler lis) (equalHandler lis)) #t)
+      ((or (greaterHandler state lis) (equalHandler state lis)) #t)
       (else #f))))
 
 
 (define andHandler
-  (lambda (lis)
-    (and (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (and (oEval state (car lis)) (oEval state (cadr lis)))))
 
 (define orHandler
-  (lambda (lis)
-    (or (oEval (car lis)) (oEval (cadr lis)))))
+  (lambda (state lis)
+    (or (oEval state (car lis)) (oEval state (cadr lis)))))
 
 ;
 ;state mutators
 ;
 ;handles if operator
 (define ifHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((oEval (car lis)) (oMutate (cadr lis)))
-      ((not (null? (cddr lis))) (oMutate (caddr lis)))
-      (else '()))))
+      ((oEval state (car lis)) (oMutate state (cadr lis)))
+      ((not (null? (cddr lis))) (oMutate state (caddr lis)))
+      (else state))))
 
 
 (define assignHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((equal? (getState (car lis)) done) (error "Variable cannot be assigned to before declaration"))
-      ((list? (cadr lis)) (updateState (cons (car lis) (cons (oEval (cadr lis)) '()))))
-      (else (updateState (cons (car lis) (cons (oEval ( cadr lis)) '())))))))
+      ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
+      ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '()))))
+      (else (updateState state (cons (car lis) (cons (oEval state ( cadr lis)) '())))))))
 
 
 (define declareHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((null? (cdr lis)) (updateState (emptyVar (car lis))))
-      (else (updateState (cons (car lis) (cons (oEval (cadr lis)) '())))))))
+      ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
+      (else (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
 
 (define returnHandler
-  (lambda (lis)
-    (updateState(list 'return (oEval (car lis))))))
+  (lambda (state lis)
+    (updateState state (list 'return (oEval state (car lis))))))
 
 (define whileHandler
-  (lambda (lis)
+  (lambda (state lis)
     (cond
-      ((equal? (oEval (car lis)) #t) (whileHandler(cdr(cons (oMutate (cadr lis)) lis))))
-      (else '()))))
+      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis)) lis))
+      (else state))))
 
 
 (define getMutator
@@ -175,9 +179,9 @@
 (define sInterpreter
   (lambda (state parsed)
     (cond
-      ((not (null? (getState 'return))) (getState 'return))
-      ((null? parsed) (getState 'return))
-      (else (sInterpreter (oMutate state (car parsed)) (cdr parsed) )))))))
+      ((not (null? (getState state 'return))) (getState state 'return))
+      ((null? parsed) (getState state 'return))
+      (else (sInterpreter (oMutate state (car parsed)) (cdr parsed) )))))
 
 (define oMutate
   (lambda (state lis)
@@ -187,9 +191,9 @@
   (lambda (state lis)
     (cond
       ((null? lis) lis)
-      ((not (list? lis)) (getState lis))
-      ((null? (cddr lis)) ((getHandler (car lis)) (list (oEval (cadr lis)))))
-      (else ((getHandler (car lis)) (list (oEval (cadr lis)) (oEval (caddr lis))))))))
+      ((not (list? lis)) (getState state lis))
+      ((null? (cddr lis)) ((getHandler (car lis)) state (list (oEval state (cadr lis)))))
+      (else ((getHandler (car lis)) state (list (oEval state (cadr lis)) (oEval state (caddr lis))))))))
 
 (define maskReturn
   (lambda (val)
@@ -205,6 +209,10 @@
 
 ;test cases
 
+;debug interpreter for hardcoded variables
+(define debugInterpreter
+  (lambda (value)
+    (maskReturn (sInterpreter (createState) value))))
 (define testIf '(if (> (* x x) y) (return (* x x))))
 
 (define test '((var x) (= x 10) (var y (+ (* 3 x) 5)) (while (!= (% y x) 3)
