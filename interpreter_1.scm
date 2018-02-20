@@ -11,7 +11,7 @@
 (define emptyVar
   (lambda (var)
     (cons var '(()))))
-
+;state update and get
 (define getState
   (lambda (state key)
     (cond
@@ -34,7 +34,7 @@
       ((equal? (caar state) (car lis)) (list (cons (car lis) (car state)) (cons (cadr lis) (cadr state))))
       (else (list (cons (caar state) (car (updateState (list (cdar state) (cdr (cadr state))) lis))) (cons (caadr state) (cadr (updateState (list (cdar state) (cdr (cadr state))) lis))))))))
       
-;state update and get
+
 
 ;expression evaluators
 (define addHandler
