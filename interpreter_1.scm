@@ -35,27 +35,29 @@
 ;helper method to get the state
 (define getStateHelper
   (lambda (state key)
-    ((null? state) (error "Variable must be declared before reference"))
-    ((null? (caar state)) (getStateHelper (cdr state) key))
-    ((eq? key (caaar state)) (caadar state))
-    (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key)))) 
+    (cond
+     ((null? state) (error "Variable must be declared before reference"))
+     ((null? (caar state)) (getStateHelper (cdr state) key))
+     ((eq? key (caaar state)) (caadar state))
+     (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
 
 (define updateState
   (lambda (state lis)
     (cond
-      (((isDeclared state (car lis)) (updateHelper state lis))
-       (else (declareHelper state lis))))))
+      ((isDeclared state (car lis)) (updateHelper state lis))
+       (else (declareHelper state lis)))))
 
 (define updateHelper
   (lambda (state lis)
+    (cond
     ((null? state) (error "Invalid state, never should be hit"))
     ((null? (caar state)) (updateHelper (cdr state) list))
-    ((eq? (car lis) (caaar state)) (cons (list () ()) (cdr state)))
-    (else (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))))
+    ((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cdr lis) (cdadar state))) (cdr state)))
+    (else (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis)))))
    
 (define declareHelper
   (lambda (state lis)
-    ((cons (list (cons (car lis) (caar state)) (cons (cadr lis) (caadr state)))))))
+    (cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
     
   
 ;helper method to check if a variable is declared
@@ -64,7 +66,7 @@
     (cond
       ((null? lis) #f)
       ((eq? (car lis) key) #t)
-      (else (isDelaredHelper (cdr lis) key)))))
+      (else (isDeclaredHelper (cdr lis) key)))))
 
   ;checks if a variable is declared
  (define isDeclared
@@ -261,3 +263,6 @@
 
 (define whileTest '((var x) (= x 10) (var y (+ (* 3 x) 5)) (while (!= (% y x) 3)
   (= y (+ y 1)))))
+
+(define emptyStateTest '((()())))
+(define setStateTest '(((x) (5))))
