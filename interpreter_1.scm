@@ -6,7 +6,11 @@
 ;creates the state
 (define createState
   (lambda ()
-    '((return true false) (() #t #f))))
+    '(((return true false) (() #t #f)))))
+
+(define createStateFrame
+  (lambda ()
+    '(()())))
 
 (define emptyVar
   (lambda (var)
@@ -15,7 +19,7 @@
 ;enters a block
 (define enterBlock
   (lambda (state lis)
-    (cdr (oMutate (cons (createState) state) lis))))
+    (cdr (oMutate (cons (createStateFrame) state) lis))))
     
 ;state update and get
 (define getState
@@ -51,10 +55,17 @@
   (lambda (state lis)
     (cond
     ((null? state) (error "Invalid state, never should be hit"))
-    ((null? (caar state)) (updateHelper (cdr state) list))
+    ((null? (caar state)) (cons (createStateFrame) (updateHelper (cdr state) lis)))
     ((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cdr lis) (cdadar state))) (cdr state)))
-    (else (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis)))))
-   
+    (else
+     (let ((result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))) ;let used here to avoid tedious and complicated duplication of calls to updateHelper
+              (cons (list (cons (caaar state) (caar result)) (cons (caadar state) (cadar result))) (cdr result))
+              )))))
+;to avoid tedious code duplication
+  (define updateRecurseHelper
+    (lambda (state lis)
+      (result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))))
+  
 (define declareHelper
   (lambda (state lis)
     (cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
@@ -265,4 +276,4 @@
   (= y (+ y 1)))))
 
 (define emptyStateTest '((()())))
-(define setStateTest '(((x) (5))))
+(define setStateTest '(((y) (7)) ((x) (5))))
