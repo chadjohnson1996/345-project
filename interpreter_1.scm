@@ -19,7 +19,7 @@
 ;enters a block
 (define enterBlock
   (lambda (state lis)
-    (cdr (oMutate (cons (createStateFrame) state) lis))))
+    (cdr (evalExpressionList (cons (createStateFrame) state) lis))))
     
 ;state update and get
 (define getState
@@ -207,6 +207,7 @@
       ((eq? operator 'var) declareHandler)
       ((eq? operator 'while) whileHandler)
       ((eq? operator '=) assignHandler)
+      ((eq? operator 'begin) enterBlock)
       (else (error "Invalid state")))))
 
 (define getHandler
@@ -236,6 +237,11 @@
       ((null? parsed) (getState state 'return))
       (else (sInterpreter (oMutate state (car parsed)) (cdr parsed) )))))
 
+(define evalExpressionList
+  (lambda (state lis)
+    (cond
+      ((null? lis) state)
+      (else (evalExpressionList (oMutate state (car lis)) (cdr lis))))))
 (define oMutate
   (lambda (state lis)
     ((getMutator (car lis)) state (cdr lis))))
