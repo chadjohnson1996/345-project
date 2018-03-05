@@ -56,7 +56,7 @@
     (cond
     ((null? state) (error "Invalid state, never should be hit"))
     ((null? (caar state)) (cons (createStateFrame) (updateHelper (cdr state) lis)))
-    ((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cdr lis) (cdadar state))) (cdr state)))
+    ((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cadr lis) (cdadar state))) (cdr state)))
     (else
      (let ((result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))) ;let used here to avoid tedious and complicated duplication of calls to updateHelper
               (cons (list (cons (caaar state) (caar result)) (cons (caadar state) (cadar result))) (cdr result))
@@ -283,3 +283,4 @@
 
 (define emptyStateTest '((()())))
 (define setStateTest '(((y) (7)) ((x) (5))))
+(define test1State '(((x return true false) ((20) ((20)) #t #f))))
