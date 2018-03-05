@@ -11,29 +11,69 @@
 (define emptyVar
   (lambda (var)
     (cons var '(()))))
+
+;enters a block
+(define enterBlock
+  (lambda (state lis)
+    (cdr (oMutate (cons (createState) state) lis))))
+    
 ;state update and get
 (define getState
   (lambda (state key)
     (cond
       ((and (null? (getStateNoCheckAssign state key)) (not (equal? key 'return))) (error "Variable must be assigned to before reference"))
       (else (getStateNoCheckAssign state key)))))
+
 ;gets state without checking assignment
 (define getStateNoCheckAssign
   (lambda (state key)
     (cond
       ((number? key) key)
       ((boolean? key) key)
-      ((null? (car state)) (error "Variable must be declared before reference"))
-      ((equal? (caar state) key) (caadr state))
-      (else (getStateNoCheckAssign (list (cdar state) (cdadr state)) key)))))
+      (else (getStateHelper state key)))))
+
+;helper method to get the state
+(define getStateHelper
+  (lambda (state key)
+    ((null? state) (error "Variable must be declared before reference"))
+    ((null? (caar state)) (getStateHelper (cdr state) key))
+    ((eq? key (caaar state)) (caadar state))
+    (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key)))) 
 
 (define updateState
   (lambda (state lis)
     (cond
-      ((null? (car state)) (list (cons (car lis) (car state)) (cons (cadr lis) (cadr state))))
-      ((equal? (caar state) (car lis)) (list (cons (car lis) (car state)) (cons (cadr lis) (cadr state))))
-      (else (list (cons (caar state) (car (updateState (list (cdar state) (cdr (cadr state))) lis))) (cons (caadr state) (cadr (updateState (list (cdar state) (cdr (cadr state))) lis))))))))
-      
+      (((isDeclared state (car lis)) (updateHelper state lis))
+       (else (declareHelper state lis))))))
+
+(define updateHelper
+  (lambda (state lis)
+    ((null? state) (error "Invalid state, never should be hit"))
+    ((null? (caar state)) (updateHelper (cdr state) list))
+    ((eq? (car lis) (caaar state)) (cons (list () ()) (cdr state)))
+    (else (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))))
+   
+(define declareHelper
+  (lambda (state lis)
+    ((cons (list (cons (car lis) (caar state)) (cons (cadr lis) (caadr state)))))))
+    
+  
+;helper method to check if a variable is declared
+(define isDeclaredHelper
+  (lambda (lis key)
+    (cond
+      ((null? lis) #f)
+      ((eq? (car lis) key) #t)
+      (else (isDelaredHelper (cdr lis) key)))))
+
+  ;checks if a variable is declared
+ (define isDeclared
+   (lambda (state key)
+     (cond
+       ((null? state) #f)
+       ((eq? (isDeclaredHelper (caar state) key) #t) #t)
+       (else (isDeclared (cdr state) key)))))
+       
 
 
 ;expression evaluators
