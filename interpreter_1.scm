@@ -6,7 +6,7 @@
 ;creates the state
 (define createState
   (lambda ()
-    '(((return true false) (() #t #f)))))
+    '(((true false) (#t #f)))))
 
 (define createStateFrame
   (lambda ()
@@ -15,11 +15,6 @@
 (define emptyVar
   (lambda (var)
     (cons var '(()))))
-
-;enters a block
-(define enterBlock
-  (lambda (state lis)
-    (cdr (evalExpressionList (cons (createStateFrame) state) lis))))
     
 ;state update and get
 (define getState
@@ -61,10 +56,6 @@
      (let ((result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))) ;let used here to avoid tedious and complicated duplication of calls to updateHelper
               (cons (list (cons (caaar state) (caar result)) (cons (caadar state) (cadar result))) (cdr result))
               )))))
-;to avoid tedious code duplication
-  (define updateRecurseHelper
-    (lambda (state lis)
-      (result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))))
   
 (define declareHelper
   (lambda (state lis)
@@ -166,16 +157,22 @@
 ;state mutators
 ;
 ;handles if operator
+
+;enters a block
+(define enterBlock
+  (lambda (state lis break)
+    (cdr (evalExpressionList (cons (createStateFrame) state) lis break))))
+
 (define ifHandler
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
-      ((oEval state (car lis)) (oMutate state (cadr lis)))
-      ((not (null? (cddr lis))) (oMutate state (caddr lis)))
+      ((oEval state (car lis)) (oMutate state (cadr lis) break))
+      ((not (null? (cddr lis))) (oMutate state (caddr lis) break))
       (else state))))
 
 
 (define assignHandler
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
       ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '()))))
@@ -183,21 +180,20 @@
 
 
 (define declareHandler
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
       ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
       (else (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
 
 (define returnHandler
-  (lambda (state lis)
-    (updateState state (list 'return (oEval state (car lis))))))
+  (lambda (state lis break)
+    (break (oEval state (car lis)))))
 
 (define whileHandler
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
-      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis)) lis))
+      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis) break) lis break))
       (else state))))
-
 
 (define getMutator
   (lambda (operator)
@@ -229,22 +225,25 @@
       ((eq? operator '!) invertBool)
       (else getState))))
 
-
-(define sInterpreter
+(define callInterpreter
   (lambda (state parsed)
+    (call/cc (lambda (break)
+               (sInterpreter state parsed break)))))
+(define sInterpreter
+  (lambda (state parsed break)
     (cond
-      ((not (null? (getState state 'return))) (getState state 'return))
-      ((null? parsed) (getState state 'return))
-      (else (sInterpreter (oMutate state (car parsed)) (cdr parsed) )))))
+      ((null? parsed) (error "no return specified"))
+      (else (sInterpreter (oMutate state (car parsed) break) (cdr parsed) break)))))
 
 (define evalExpressionList
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
       ((null? lis) state)
-      (else (evalExpressionList (oMutate state (car lis)) (cdr lis))))))
+      (else (evalExpressionList (oMutate state (car lis) break) (cdr lis) break)))))
+
 (define oMutate
-  (lambda (state lis)
-    ((getMutator (car lis)) state (cdr lis))))
+  (lambda (state lis break)
+    ((getMutator (car lis)) state (cdr lis) break)))
 
 (define oEval
   (lambda (state lis)
@@ -263,7 +262,7 @@
 
 (define interpret
   (lambda (fileName)
-    (maskReturn (sInterpreter (createState) (parser fileName)))))
+    (maskReturn (callInterpreter (createState) (parser fileName)))))
 
 
 ;test cases
