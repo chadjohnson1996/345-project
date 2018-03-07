@@ -213,12 +213,19 @@
   (lambda (state lis)
     (call/cc
      (lambda (break)
-       (oMutate (oMutate (oMutate (addFrame state) (cadr lis)) (car lis)) (caddr lis))))))
+       (oMutate (evalExpressionList (oMutate (addFrame state) (cadr lis)) (car lis)) (caddr lis))))))
        
+(define catchHandler
+  (lambda (state lis)
+    (cond
+      ((null? lis) state)
+      (else (addCatch state (lambda (v) (oMutate (updateState state (list (caar lis) v ))
+                                                 (cadr lis))))))))
     
+
 (define finallyHandler
   (lambda (state lis)
-    (oMutate state (cadr lis))))
+    (evalExpressionList state (car lis))))
        
 (define getMutator
   (lambda (operator)
@@ -233,7 +240,7 @@
       ((eq? operator 'try) tryHandler)
       ((eq? operator 'finally) finallyHandler)
       ((eq? operator 'catch) catchHandler)
-      (else (error "Invalid state")))))
+      (else (error operator)))))
 
 (define getHandler
   (lambda (operator)
