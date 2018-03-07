@@ -211,16 +211,16 @@
 
 (define tryHandler
   (lambda (state lis)
-    (call/cc
+    (oMutate (call/cc
      (lambda (break)
-       (oMutate (evalExpressionList (oMutate (addFrame state) (cadr lis)) (car lis)) (caddr lis))))))
+       (evalExpressionList (catchHandler (addFrame state) (cdadr lis) break) (car lis))))(caddr lis))))
        
 (define catchHandler
-  (lambda (state lis)
+  (lambda (state lis break)
     (cond
       ((null? lis) state)
-      (else (addCatch state (lambda (v) (oMutate (updateState state (list (caar lis) v ))
-                                                 (cadr lis))))))))
+      (else (addCatch state (lambda (v) (break (evalExpressionList (updateState state (list (caar lis) v ))
+                                                 (cadr lis)))))))))
     
 
 (define finallyHandler
