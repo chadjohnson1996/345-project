@@ -12,10 +12,18 @@
   (lambda ()
     '(()())))
 
+(define addFrame
+  (lambda (state)
+    (cons (createStateFrame) state)))
+
 (define emptyVar
   (lambda (var)
     (cons var '(()))))
-    
+
+;adds values to lowest state frame without checking. Used for return and try/catch/finally
+(define addToFrameNoCheck
+  (lambda (state key value)
+    (cons (list (cons key (caar state)) (cons value (cadar state))) (cdr state))))
 ;state update and get
 (define getState
   (lambda (state key)
@@ -159,20 +167,22 @@
 ;handles if operator
 
 ;enters a block
+
+
 (define enterBlock
-  (lambda (state lis break)
-    (cdr (evalExpressionList (cons (createStateFrame) state) lis break))))
+  (lambda (state lis)
+    (cdr (evalExpressionList (addFrame state) lis))))
 
 (define ifHandler
-  (lambda (state lis break)
+  (lambda (state lis)
     (cond
-      ((oEval state (car lis)) (oMutate state (cadr lis) break))
-      ((not (null? (cddr lis))) (oMutate state (caddr lis) break))
+      ((oEval state (car lis)) (oMutate state (cadr lis)))
+      ((not (null? (cddr lis))) (oMutate state (caddr lis)))
       (else state))))
 
 
 (define assignHandler
-  (lambda (state lis break)
+  (lambda (state lis)
     (cond
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
       ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '()))))
@@ -180,21 +190,36 @@
 
 
 (define declareHandler
-  (lambda (state lis break)
+  (lambda (state lis)
     (cond
       ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
       (else (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
 
 (define returnHandler
-  (lambda (state lis break)
-    (break (oEval state (car lis)))))
+  (lambda (state lis)
+    ((getState state 'return)(oEval state (car lis)))))
 
 (define whileHandler
-  (lambda (state lis break)
+  (lambda (state lis)
     (cond
-      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis) break) lis break))
+      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis)) lis))
       (else state))))
 
+(define throwHandler
+  (lambda (state lis)
+    ((getState state 'catch) (oEval state (car lis)))))
+
+(define tryHandler
+  (lambda (state lis)
+    (call/cc
+     (lambda (break)
+       (oMutate (oMutate (oMutate (addFrame state) (cadr lis)) (car lis)) (caddr lis))))))
+       
+    
+(define finallyHandler
+  (lambda (state lis)
+    (oMutate state (cadr lis))))
+       
 (define getMutator
   (lambda (operator)
     (cond
@@ -204,6 +229,10 @@
       ((eq? operator 'while) whileHandler)
       ((eq? operator '=) assignHandler)
       ((eq? operator 'begin) enterBlock)
+      ((eq? operator 'throw) throwHandler)
+      ((eq? operator 'try) tryHandler)
+      ((eq? operator 'finally) finallyHandler)
+      ((eq? operator 'catch) catchHandler)
       (else (error "Invalid state")))))
 
 (define getHandler
@@ -228,22 +257,34 @@
 (define callInterpreter
   (lambda (state parsed)
     (call/cc (lambda (break)
-               (sInterpreter state parsed break)))))
+               (sInterpreter (addReturn (addCatch state break) break) parsed )))))
+
+(define addReturn
+  (lambda (state callback)
+    (addToFrameNoCheck state 'return callback)))
+
+;adds the catch handler to the state
+(define addCatch
+  (lambda (state callback)
+    (addToFrameNoCheck state 'catch callback)))
+    
 (define sInterpreter
-  (lambda (state parsed break)
+  (lambda (state parsed)
     (cond
       ((null? parsed) (error "no return specified"))
-      (else (sInterpreter (oMutate state (car parsed) break) (cdr parsed) break)))))
+      (else (sInterpreter (oMutate state (car parsed)) (cdr parsed))))))
 
 (define evalExpressionList
-  (lambda (state lis break)
+  (lambda (state lis)
     (cond
       ((null? lis) state)
-      (else (evalExpressionList (oMutate state (car lis) break) (cdr lis) break)))))
+      (else (evalExpressionList (oMutate state (car lis)) (cdr lis))))))
 
 (define oMutate
-  (lambda (state lis break)
-    ((getMutator (car lis)) state (cdr lis) break)))
+  (lambda (state lis)
+    (cond
+      ((null? lis) state)
+      (else ((getMutator (car lis)) state (cdr lis))))))
 
 (define oEval
   (lambda (state lis)
