@@ -8,6 +8,32 @@
   (lambda ()
     '(((true false) (#t #f)))))
 
+;builds chain of continuations to test
+(define continuationFactory
+  (lambda (prev key continuation)
+    (lambda (key2)
+      (cond
+        ((eq? key2 key) continuation)
+        (else (prev key2))))))
+
+;methods for trimming frames off state after breaks etc
+(define revertToOldLevel
+  (lambda (new old)
+    (truncateLevels new (- (getDepth new) (getDepth old)))))
+
+(define getDepth
+  (lambda (state)
+    (cond
+     ((null? state) 0)
+     (else (+ 1 (getDepth (cdr state)))))))
+
+(define truncateLevels
+  (lambda (state levels)
+    (cond
+      ((eq? levels 0) state)
+      (else (truncateLevels (cdr state) (- levels 1))))))
+    
+                                                        
 (define createStateFrame
   (lambda ()
     '(()())))
@@ -43,6 +69,7 @@
 (define getStateHelper
   (lambda (state key)
     (cond
+      ((null? state) (error key))
      ((null? state) (error "Variable must be declared before reference"))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (caadar state))
@@ -68,8 +95,7 @@
 (define declareHelper
   (lambda (state lis)
     (cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
-    
-  
+        
 ;helper method to check if a variable is declared
 (define isDeclaredHelper
   (lambda (lis key)
@@ -116,6 +142,7 @@
     (cond
       ((equal? (oEval state (car lis)) (oEval state (cadr lis))) #t)
       (else #f))))
+
 (define invertBool
   (lambda (state val)
     (cond
@@ -170,19 +197,28 @@
 
 
 (define enterBlock
-  (lambda (state lis)
-    (cdr (evalExpressionList (addFrame state) lis))))
+  (lambda (state lis continuations)
+    (cdr (evalExpressionList (addFrame state) lis continuations))))
+
+(define continueHandler
+  (lambda (state lis continuations)
+    ((continuations 'continue) state continuations)))
+    
+
+(define breakHandler
+  (lambda (state lis continuations)
+    ((continuations 'break) state)))
 
 (define ifHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((oEval state (car lis)) (oMutate state (cadr lis)))
-      ((not (null? (cddr lis))) (oMutate state (caddr lis)))
+      ((oEval state (car lis)) (oMutate state (cadr lis) continuations))
+      ((not (null? (cddr lis))) (oMutate state (caddr lis) continuations))
       (else state))))
 
 
 (define assignHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
       ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '()))))
@@ -190,42 +226,58 @@
 
 
 (define declareHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
       (else (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
 
 (define returnHandler
-  (lambda (state lis)
-    ((getState state 'return)(oEval state (car lis)))))
+  (lambda (state lis continuations)
+    ((continuations 'return)(oEval state (car lis)))))
 
+;preps break and continue for while invokation
+(define prepWhile
+  (lambda (state lis continuations)
+    (call/cc (lambda (break)
+               (whileHandler state lis (continuationFactory
+                                        (continuationFactory continuations 'break
+                                                             (lambda (v)(break (revertToOldLevel v state)))) 'continue
+                                                                                                             (lambda (state2 continuations2)
+                                                                                                                  (break (revertToOldLevel (whileHandler state2 lis continuations2) state)
+                                                                                                                         ))))))))
 (define whileHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis)) lis))
+      ((equal? (oEval state (car lis)) #t) 
+                                                      (whileHandler (oMutate state (cadr lis) continuations) lis continuations))
       (else state))))
 
+
 (define throwHandler
-  (lambda (state lis)
-    ((getState state 'catch) (oEval state (car lis)))))
+  (lambda (state lis continuations)
+    ((continuations 'catch) state (oEval state (car lis)))))
 
 (define tryHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (oMutate (call/cc
      (lambda (break)
-       (evalExpressionList (catchHandler (addFrame state) (cdadr lis) break) (car lis))))(caddr lis))))
+       (evalExpressionList state (car lis) (addCatchHandler state lis continuations break))))(caddr lis) continuations) ))
+
+(define addCatchHandler
+  (lambda (state lis continuations break)
+    (cond
+      ((null? (cadr lis)) continuations)
+      (else (continuationFactory continuations 'catch (lambda (state2 thrown)
+                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadadr lis) continuations) state))))))))
        
 (define catchHandler
-  (lambda (state lis break)
-    (cond
-      ((null? lis) state)
-      (else (addCatch state (lambda (v) (break (evalExpressionList (updateState state (list (caar lis) v ))
-                                                 (cadr lis)))))))))
+  (lambda (state lis continuations)
+    ((continuations 'catch) state (car lis))))
     
 
 (define finallyHandler
-  (lambda (state lis)
-    (evalExpressionList state (car lis))))
+  (lambda (state lis continuations)
+    (evalExpressionList state (car lis) continuations)))
        
 (define getMutator
   (lambda (operator)
@@ -233,13 +285,15 @@
       ((eq? operator 'return) returnHandler)
       ((eq? operator 'if) ifHandler)
       ((eq? operator 'var) declareHandler)
-      ((eq? operator 'while) whileHandler)
+      ((eq? operator 'while) prepWhile)
       ((eq? operator '=) assignHandler)
       ((eq? operator 'begin) enterBlock)
       ((eq? operator 'throw) throwHandler)
       ((eq? operator 'try) tryHandler)
       ((eq? operator 'finally) finallyHandler)
       ((eq? operator 'catch) catchHandler)
+      ((eq? operator 'continue) continueHandler)
+      ((eq? operator 'break) breakHandler)
       (else (error operator)))))
 
 (define getHandler
@@ -264,7 +318,11 @@
 (define callInterpreter
   (lambda (state parsed)
     (call/cc (lambda (break)
-               (sInterpreter (addReturn (addCatch state break) break) parsed )))))
+               (sInterpreter state parsed (bootstrapContinuations break))))))
+
+(define bootstrapContinuations
+  (lambda (break)
+    (continuationFactory (lambda (v) (error "Invalid use of continuation")) 'return break)))
 
 (define addReturn
   (lambda (state callback)
@@ -276,22 +334,22 @@
     (addToFrameNoCheck state 'catch callback)))
     
 (define sInterpreter
-  (lambda (state parsed)
+  (lambda (state parsed continuations)
     (cond
       ((null? parsed) (error "no return specified"))
-      (else (sInterpreter (oMutate state (car parsed)) (cdr parsed))))))
+      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations)))))
 
 (define evalExpressionList
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((null? lis) state)
-      (else (evalExpressionList (oMutate state (car lis)) (cdr lis))))))
+      (else (evalExpressionList (oMutate state (car lis) continuations) (cdr lis) continuations)))))
 
 (define oMutate
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((null? lis) state)
-      (else ((getMutator (car lis)) state (cdr lis))))))
+      (else ((getMutator (car lis)) state (cdr lis) continuations)))))
 
 (define oEval
   (lambda (state lis)

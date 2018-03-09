@@ -116,6 +116,7 @@
     (cond
       ((equal? (oEval state (car lis)) (oEval state (cadr lis))) #t)
       (else #f))))
+
 (define invertBool
   (lambda (state val)
     (cond
@@ -173,6 +174,22 @@
   (lambda (state lis)
     (cdr (evalExpressionList (addFrame state) lis))))
 
+(define continueHandler
+  (lambda (state lis)
+    (cond
+      ((not (isDeclared state 'continue)) (error "Incorrect use of 'continue'"))
+      (else (whileHandler state (getState state 'continue))))))
+
+(define breakHandler
+  (lambda (state lis)
+    (cond
+      ((not (isDeclared state 'continue)) (error "Incorrect use of 'break'"))
+      (else (setBreak? state)))))
+
+(define setBreak?
+  (lambda (state)
+    (list (car state) (list (cons 'break? (caadr state)) (cons '#t (cadr (cadr state)))))))
+
 (define ifHandler
   (lambda (state lis)
     (cond
@@ -202,8 +219,17 @@
 (define whileHandler
   (lambda (state lis)
     (cond
+      ((not (isDeclared state 'continue)) (setContinue state lis))
+      ((isDeclared state 'break?) state)
       ((equal? (oEval state (car lis)) #t) (whileHandler (oMutate state (cadr lis)) lis))
       (else state))))
+
+;(oMutate (updateState state (list 'full lis)) (cadr lis))
+(define setContinue
+  (lambda (state lis)
+      (whileHandler
+       (list (list (cons 'continue (caar state)) (cons lis (cadar state))))
+       lis)))
 
 (define throwHandler
   (lambda (state lis)
@@ -240,6 +266,8 @@
       ((eq? operator 'try) tryHandler)
       ((eq? operator 'finally) finallyHandler)
       ((eq? operator 'catch) catchHandler)
+      ((eq? operator 'continue) continueHandler)
+      ((eq? operator 'break) breakHandler)
       (else (error operator)))))
 
 (define getHandler
@@ -285,6 +313,7 @@
   (lambda (state lis)
     (cond
       ((null? lis) state)
+      ((or (equal? (car lis) '(continue)) (equal? (car lis) '(break))) (oMutate state (car lis)))
       (else (evalExpressionList (oMutate state (car lis)) (cdr lis))))))
 
 (define oMutate
