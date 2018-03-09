@@ -69,6 +69,7 @@
 (define getStateHelper
   (lambda (state key)
     (cond
+      ((null? state) (error key))
      ((null? state) (error "Variable must be declared before reference"))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (caadar state))
@@ -254,7 +255,7 @@
 
 (define throwHandler
   (lambda (state lis continuations)
-    ((getState state 'catch) (oEval state (car lis)))))
+    ((continuations 'catch) state (oEval state (car lis)))))
 
 (define tryHandler
   (lambda (state lis continuations)
@@ -267,7 +268,7 @@
     (cond
       ((null? (cadr lis)) continuations)
       (else (continuationFactory continuations 'catch (lambda (state2 thrown)
-                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadr lis)) state))))))))
+                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadadr lis) continuations) state))))))))
        
 (define catchHandler
   (lambda (state lis continuations)
