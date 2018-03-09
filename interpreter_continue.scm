@@ -3,12 +3,13 @@
 ;Griffin Saiia, Chad Johnson
 ;PLC Project 1
 
-;creates the state
+;creates the default state
 (define createState
   (lambda ()
     '(((true false) (#t #f)))))
 
 ;builds chain of continuations to test
+;more recently added take precedence over older added so it works with different levels
 (define continuationFactory
   (lambda (prev key continuation)
     (lambda (key2)
@@ -21,27 +22,30 @@
   (lambda (new old)
     (truncateLevels new (- (getDepth new) (getDepth old)))))
 
+;gets the depth of a state
 (define getDepth
   (lambda (state)
     (cond
      ((null? state) 0)
      (else (+ 1 (getDepth (cdr state)))))))
 
+;truncates the specified numer of levels from the state
 (define truncateLevels
   (lambda (state levels)
     (cond
       ((eq? levels 0) state)
       (else (truncateLevels (cdr state) (- levels 1))))))
-    
-                                                        
+;crerates an empty state frame                                                       
 (define createStateFrame
   (lambda ()
     '(()())))
 
+;adds an empty state frame to the state
 (define addFrame
   (lambda (state)
     (cons (createStateFrame) state)))
 
+;gets representation of empty variable
 (define emptyVar
   (lambda (var)
     (cons var '(()))))
@@ -55,14 +59,15 @@
   (lambda (state key)
     (cond
       ((and (null? (getStateNoCheckAssign state key)) (not (equal? key 'return))) (error "Variable must be assigned to before reference"))
+      ;if variable is null, the unassigned value, throw error, otherwise return it
       (else (getStateNoCheckAssign state key)))))
 
 ;gets state without checking assignment
 (define getStateNoCheckAssign
   (lambda (state key)
     (cond
-      ((number? key) key)
-      ((boolean? key) key)
+      ((number? key) key) ;if the key is a number just return it
+      ((boolean? key) key) ;if the key is a boolean just return it
       (else (getStateHelper state key)))))
 
 ;helper method to get the state
@@ -198,16 +203,18 @@
 
 (define enterBlock
   (lambda (state lis continuations)
-    (cdr (evalExpressionList (addFrame state) lis continuations))))
+    (cdr (evalExpressionList (addFrame state) lis continuations)))) ;enters a block by adding a state frame and removing it when it is done
 
 (define continueHandler
   (lambda (state lis continuations)
     ((continuations 'continue) state continuations)))
+    ;gets the current continue handler and invokes it on the state
     
 
 (define breakHandler
   (lambda (state lis continuations)
     ((continuations 'break) state)))
+    ;gets the current break handler and invokes it on the state
 
 (define ifHandler
   (lambda (state lis continuations)
@@ -234,17 +241,27 @@
 (define returnHandler
   (lambda (state lis continuations)
     ((continuations 'return)(oEval state (car lis)))))
+     ;gets the return handler and invokes it on the state
 
 ;preps break and continue for while invokation
+;then invokes while
 (define prepWhile
   (lambda (state lis continuations)
     (call/cc (lambda (break)
+               ;while handler is invoked on state and list but continuations are updated
+               ;break continuation calls break and is passed the current state, pops any added state frames, and returns the stat
+               ;without the added state frames
+               ;the continue continuation is passed the state and current continuation list
+               ;pops added frames off of state
+               ;and calls while handler on state and passed continuations
+               ;it passes the same continuations that are created here, but it is easier to pass them in to avoid generation issues
                (whileHandler state lis (continuationFactory
                                         (continuationFactory continuations 'break
                                                              (lambda (v)(break (revertToOldLevel v state)))) 'continue
                                                                                                              (lambda (state2 continuations2)
                                                                                                                   (break (revertToOldLevel (whileHandler state2 lis continuations2) state)
                                                                                                                          ))))))))
+
 (define whileHandler
   (lambda (state lis continuations)
     (cond
@@ -259,28 +276,32 @@
 
 (define tryHandler
   (lambda (state lis continuations)
+    ;calls finally outside call/cc so no matter if the state is returned from regular block or exception block it is invoked
     (oMutate (call/cc
      (lambda (break)
+       ;adds the catch block as a catch handler to the continuations and then invokes the try block
        (evalExpressionList state (car lis) (addCatchHandler state (getCatchPortion lis) continuations break))))(caddr lis) continuations) ))
 
+;helper method to get catch portion of parsed "try" value
 (define getCatchPortion
   (lambda (lis)
     (cond
-      ((null? (cadr lis)) '())
-      (else (cdadr lis)))))
+      ((null? (cadr lis)) '()) ;if it is null return null
+      (else (cdadr lis))))) ;else return catch block without the "catch" keyword
 
+;adds a catch handler to the continuations and returns the continuations
 (define addCatchHandler
   (lambda (state lis continuations break)
     (cond
-      ((null? lis) continuations)
+      
+      ((null? lis) continuations) ;if there is no catch block, return current continuations
+      ;else add catch handler that pops added frames from state, adds thrown value to new layer on popped state
+      ;invokes catch block on mutated state
+      ;and then pops frames catch handler added and breaks with that state
       (else (continuationFactory continuations 'catch (lambda (state2 thrown)
                                                 (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadr lis) continuations) state))))))))
-       
-(define catchHandler
-  (lambda (state lis continuations)
-    ((continuations 'catch) state (car lis))))
-    
 
+;invokes finally expression list on state
 (define finallyHandler
   (lambda (state lis continuations)
     (evalExpressionList state (car lis) continuations)))
@@ -297,7 +318,6 @@
       ((eq? operator 'throw) throwHandler)
       ((eq? operator 'try) tryHandler)
       ((eq? operator 'finally) finallyHandler)
-      ((eq? operator 'catch) catchHandler)
       ((eq? operator 'continue) continueHandler)
       ((eq? operator 'break) breakHandler)
       (else (error operator)))))
