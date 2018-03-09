@@ -261,14 +261,20 @@
   (lambda (state lis continuations)
     (oMutate (call/cc
      (lambda (break)
-       (evalExpressionList state (car lis) (addCatchHandler state lis continuations break))))(caddr lis) continuations) ))
+       (evalExpressionList state (car lis) (addCatchHandler state (getCatchPortion lis) continuations break))))(caddr lis) continuations) ))
+
+(define getCatchPortion
+  (lambda (lis)
+    (cond
+      ((null? (cadr lis)) '())
+      (else (cdadr lis)))))
 
 (define addCatchHandler
   (lambda (state lis continuations break)
     (cond
-      ((null? (cadr lis)) continuations)
+      ((null? lis) continuations)
       (else (continuationFactory continuations 'catch (lambda (state2 thrown)
-                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadadr lis) continuations) state))))))))
+                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadr lis) continuations) state))))))))
        
 (define catchHandler
   (lambda (state lis continuations)
