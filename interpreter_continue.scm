@@ -239,7 +239,9 @@
   (lambda (state lis continuations)
     (call/cc (lambda (break)
                (whileHandler state lis (continuationFactory
-                                        (continuationFactory continuations 'break (lambda (v)(break (revertToOldLevel v state)))) 'continue (lambda (state2 continuations2)
+                                        (continuationFactory continuations 'break
+                                                             (lambda (v)(break (revertToOldLevel v state)))) 'continue
+                                                                                                             (lambda (state2 continuations2)
                                                                                                                   (break (revertToOldLevel (whileHandler state2 lis continuations2) state)
                                                                                                                          ))))))))
 (define whileHandler
@@ -249,34 +251,32 @@
                                                       (whileHandler (oMutate state (cadr lis) continuations) lis continuations))
       (else state))))
 
-;(oMutate (updateState state (list 'full lis)) (cadr lis))
-(define setContinue
-  (lambda (state lis)
-      (cdr (whileHandler
-            (addToFrameNoCheck (addFrame state) 'continue lis)
-       lis))))
 
 (define throwHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     ((getState state 'catch) (oEval state (car lis)))))
 
 (define tryHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (oMutate (call/cc
      (lambda (break)
-       (evalExpressionList (catchHandler (addFrame state) (cdadr lis) break) (car lis))))(caddr lis))))
+       (evalExpressionList state (car lis) (addCatchHandler state lis continuations break))))(caddr lis) continuations) ))
+
+(define addCatchHandler
+  (lambda (state lis continuations break)
+    (cond
+      ((null? (cadr lis)) continuations)
+      (else (continuationFactory continuations 'catch (lambda (state2 thrown)
+                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadr lis)) state))))))))
        
 (define catchHandler
-  (lambda (state lis break)
-    (cond
-      ((null? lis) state)
-      (else (addCatch state (lambda (v) (break (evalExpressionList (updateState state (list (caar lis) v ))
-                                                 (cadr lis)))))))))
+  (lambda (state lis continuations)
+    ((continuations 'catch) state (car lis))))
     
 
 (define finallyHandler
-  (lambda (state lis)
-    (evalExpressionList state (car lis))))
+  (lambda (state lis continuations)
+    (evalExpressionList state (car lis) continuations)))
        
 (define getMutator
   (lambda (operator)
