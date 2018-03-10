@@ -69,7 +69,6 @@
 (define getStateHelper
   (lambda (state key)
     (cond
-      ((null? state) (error key))
      ((null? state) (error "Variable must be declared before reference"))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (caadar state))
