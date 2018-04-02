@@ -494,9 +494,7 @@
     (cond
       ((null? lis) lis)
       ((not (list? lis)) (getState state lis))
-      ((eq? (car lis) 'funcall) (functionCallHandler state (evalArgs state (cdr lis))))
-      (else ((getHandler (car lis)) state (list (oEval state (cadr lis)) (oEval state (caddr lis))))))))
-      ;(else ((getHandler (car lis)) state (evalArgs state (cdr lis)))))))
+      (else ((getHandler (car lis)) state (evalArgs state (cdr lis)))))))
 
 (define evalArgs
   (lambda (state lis)
