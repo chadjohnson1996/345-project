@@ -343,7 +343,7 @@
 
 (define prepStateForCall
   (lambda (state def lis)
-    (cons (bootstrapFunctionParams state (list (createStateFrame)) def lis) (list (car state)))))
+    (cons (bootstrapFunctionParams state (createStateFrame) def lis) (list (car state)))))
 
 (define bootstrapFunctionParams
   (lambda (oldState state def lis)
