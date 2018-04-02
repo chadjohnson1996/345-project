@@ -395,7 +395,7 @@
       (newline)
       (display lis)
       (newline)
-    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis))))))
+    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations))))
 
 (define functionCallHandler
   (lambda (state lis continuations)
@@ -466,16 +466,20 @@
       ((eq? operator 'funcall) functionCallHandler)
       (else getState))))
 
+(define rootCallInterpreter
+  (lambda (state parsed)
+    (call/cc (lambda (break)
+               (callInterpreter state parsed (bootstrapContinuations break))))))
 ;helper for sInterpreter that ensures that it carries appropriate continuations (calls bootstrapContinuations)
 (define callInterpreter
-  (lambda (state parsed)
+  (lambda (state parsed continuations)
     (begin
       (display "callInterpreter")
       (display state)
       (newline)
       (newline)
       (call/cc (lambda (break)
-               (sInterpreter state parsed (bootstrapContinuations break)))))))
+               (sInterpreter state parsed (continuationFactory continuations 'return break)))))))
 
 (define bootstrapGlobal
   (lambda (state parsed)
