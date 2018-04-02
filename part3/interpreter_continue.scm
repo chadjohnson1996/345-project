@@ -263,7 +263,7 @@
   (lambda (state lis continuations)
     (cond
       ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
-      (else (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
+      (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
 
 (define returnHandler
   (lambda (state lis continuations)
@@ -468,6 +468,8 @@
     (begin
       (display "sInterpreter")
       (display state)
+      (newline)
+      (display parsed)
       (newline)
     (cond
       ((null? parsed) state)
