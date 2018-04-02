@@ -299,6 +299,7 @@
                (whileHandler (oMutate state (cadr lis) continuations) lis continuations))
       (else state))))
 
+;handles throw
 (define throwHandler
   (lambda (state lis continuations)
     ((continuations 'catch)(oEval state (car lis) continuations))))
@@ -338,25 +339,23 @@
     (evalExpressionList state (car lis) continuations)))
 
 
-
+;first pass define function
 (define functionDefineHandler
   (lambda (state lis continuations)
     (secondPassFunctionDefinition (updateState state (list (car lis) (cdr lis))) (car lis))))
 
+;second pass update already defined function and stores it with closure of current state
+;this has to happen after function is already defined so it is in its own closure and can recursively call itself
 (define secondPassFunctionDefinition
   (lambda (state key)
     (updateState state (list key (list (getState state key) state)))))
 
+;preps the state for a function call, defines parameters and adds them to closure
 (define prepStateForCall
   (lambda (state def lis continuations)
     (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
 
-(define last
-  (lambda (lis)
-    (cond
-      ((null? (cdr lis)) (car lis))
-      (else (last (cdr lis))))))
-
+;figures out the parameters of a function and adds them to the functions new state, after they are assigned
 (define bootstrapFunctionParams
   (lambda (oldState state def lis continuations)
       (cond
@@ -364,19 +363,20 @@
       ((null? def) state)
       (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))) 
 
-(define prepStateAfterCall
-  (lambda (result state)
-    (cons (car result) (cdr state))))
-
+;helper method to call functions
 (define functionCallHelper
   (lambda (state lis closure continuations)
     (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations)))
 
+;function call handler, seperates the function body from the closure that is stored in state and calls helper function
+;seperate of parameters makes it easy to work with
 (define functionCallHandler
   (lambda (state lis continuations)
     (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
 
 
+;handles a function invokation by itself that is not a part of an expression list, this one is different because you need to evaluate the parameters
+;if it was part of an expression list they would be evaluated already
 (define functionCallHandlerMutate
   (lambda (state lis continuations)
     (begin
@@ -441,6 +441,8 @@
     (sInterpreter state parsed (lambda (v) v))))
 
 
+;main interpreter function, call/cc is a little redundant, but we have to bootstrap our initial continuation list (top level return) at some point
+;redundnacy doesn't matter
 (define mainInterpreter
   (lambda (state parsed)
     (call/cc
@@ -493,6 +495,7 @@
       ((not (list? lis)) (getState state lis))
       (else ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations) continuations)))))
 
+;evaluates an arg list for oEval, generic function that works with abitrary number of parameters, unary, binary, more for function calls, etc
 (define evalArgs
   (lambda (state lis continuations)
     (cond
