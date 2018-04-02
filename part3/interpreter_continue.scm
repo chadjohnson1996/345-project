@@ -365,6 +365,7 @@
       (newline)
       (newline)
       (cond
+        ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
       (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (oEval oldState (car lis)) (cadr state))) (cdr def) (cdr lis))))))) 
 
