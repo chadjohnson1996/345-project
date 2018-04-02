@@ -1,3 +1,6 @@
+;please see other previous on time submission by Griffin Saiia. I am just submitting this because no submission showed up for me (I think I may have not formally joined group again or something?)
+;See comments on submission for more explanation
+
 (load "simpleParser.scm")
 ;use pretty big
 ;Chad Johnson, Griffin Saiia
