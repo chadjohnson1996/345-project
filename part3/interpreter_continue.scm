@@ -144,6 +144,7 @@
   (lambda (state levels)
     (cond
       ((eq? levels 0) state)
+      ((null? state) state)
       (else (truncateLevels (cdr state) (- levels 1))))))
        
 
@@ -272,7 +273,7 @@
 (define declareHandler
   (lambda (state lis continuations)
     (cond
-      ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
+      ((null? (cdr lis)) (declareHelper state (emptyVar (car lis))))
       (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis) continuations) '())))))))
 
 (define returnHandler
@@ -569,7 +570,7 @@
 (define fibTest '((function fib (a) ((if (== a 0) (return 0) (if (== a 1) (return 1) (return (+ (funcall fib (- a 1)) (funcall fib (- a 2)))))))) (function main () ((return (funcall fib 10))))))
 (define fibTest '((function fib (a) ((return 0))) (function main () ((return (funcall fib 10))))))
 
-
+;test 15: first is supposed to return 141, is returning 142
 
 
 
