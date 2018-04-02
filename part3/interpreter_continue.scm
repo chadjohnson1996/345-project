@@ -36,6 +36,7 @@
 (define addToFrameNoCheck
   (lambda (state key value)
     (cons (list (cons key (caar state)) (cons value (cadar state))) (cdr state))))
+
 ;state update and get
 (define getState
   (lambda (state key)
@@ -47,23 +48,16 @@
 ;gets state without checking assignment
 (define getStateNoCheckAssign
   (lambda (state key)
-    (begin
-      ;(display "state")
-      ;(display state)
-      ;(newline)
-      ;(display key)
-     ; (newline)
     (cond
       ((number? key) key) ;if the key is a number just return it
       ((boolean? key) key) ;if the key is a boolean just return it
-      (else (getStateHelper state key))))))
+      (else (getStateHelper state key)))))
 
 ;helper method to get the state
 (define getStateHelper
   (lambda (state key)
     (cond
-     ;((null? state) (error "Variable must be declared before reference"))
-     ((null? state) (error key))
+     ((null? state) (error "Variable must be declared before reference"))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -81,7 +75,6 @@
     (cond
     ((null? state) (error "Invalid state, never should be hit")) ;more for us than for anything
     ((null? (caar state)) (cons (createStateFrame) (updateHelper (cdr state) lis)))
-    ;((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cadr lis) (cdadar state))) (cdr state)))
     ((eq? (car lis) (caaar state)) (begin
                                      (set-box! (caadar state)(cadr lis))
                                      state))
@@ -93,8 +86,7 @@
 ;declares a variable on current frame
 (define declareHelper
   (lambda (state lis)
-    ;(cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
-(cons (list (cons (car lis) (caar state)) (cons (box (cadr lis)) (cadar state))) (cdr state))))
+    (cons (list (cons (car lis) (caar state)) (cons (box (cadr lis)) (cadar state))) (cdr state))))
         
 ;helper method to check if a variable is declared
 (define isDeclaredHelper
@@ -309,7 +301,7 @@
 
 (define throwHandler
   (lambda (state lis continuations)
-    ((continuations 'catch) (oEval state (car lis) continuations))))
+    ((continuations 'catch)(oEval state (car lis) continuations))))
 
 (define tryHandler
   (lambda (state lis continuations)
@@ -367,21 +359,10 @@
 
 (define bootstrapFunctionParams
   (lambda (oldState state def lis continuations)
-    (begin
-      (display "bootstrapFunctionParams")
-      (display oldState)
-      (newline)
-      (display state)
-      (newline)
-      (display def)
-      (newline)
-      (display lis)
-      (newline)
-      (newline)
       (cond
         ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations)))))) 
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))) 
 
 (define prepStateAfterCall
   (lambda (result state)
@@ -389,13 +370,7 @@
 
 (define functionCallHelper
   (lambda (state lis closure continuations)
-    (begin
-      (display "functionCallHandler")
-      ;(display state)
-      (newline)
-      (display lis)
-      (newline)
-    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations))))
+    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations)))
 
 (define functionCallHandler
   (lambda (state lis continuations)
@@ -405,11 +380,6 @@
 (define functionCallHandlerMutate
   (lambda (state lis continuations)
     (begin
-      (display "functionCallHandlerMutate")
-      (display state)
-      (newline)
-      (display lis)
-      (newline)
     (functionCallHandler state (evalArgs state lis continuations) continuations)
     state)))
     
@@ -458,25 +428,19 @@
       ((eq? operator 'funcall) functionCallHandler)
       (else getState))))
 
-(define rootCallInterpreter
-  (lambda (state parsed)
-    (call/cc (lambda (break)
-               (callInterpreter state parsed (bootstrapContinuations break))))))
+
 ;helper for sInterpreter that ensures that it carries appropriate continuations (calls bootstrapContinuations)
 (define callInterpreter
   (lambda (state parsed continuations)
-    (begin
-      (display "callInterpreter")
-      (display state)
-      (newline)
-      (newline)
       (call/cc (lambda (break)
-               (sInterpreter state parsed (continuationFactory continuations 'return break)))))))
+               (sInterpreter state parsed (continuationFactory continuations 'return break))))))
 
+;does the global bootstrapping
 (define bootstrapGlobal
   (lambda (state parsed)
     (sInterpreter state parsed (lambda (v) v))))
-    
+
+
 (define mainInterpreter
   (lambda (state parsed)
     (call/cc
@@ -502,15 +466,9 @@
 ;umbrella function that interpreter runs inside
 (define sInterpreter
   (lambda (state parsed continuations)
-    (begin
-      (display "sInterpreter")
-      (display state)
-      (newline)
-      (display parsed)
-      (newline)
     (cond
       ((null? parsed) state)
-      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations))))))
+      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations)))))
 
 ;deals with a line of code at a time
 (define evalExpressionList
@@ -558,10 +516,7 @@
   (lambda (lis)
     (maskReturn (mainInterpreter (createState) lis))))
 
-(define fibTest '((function fib (a) ((if (== a 0) (return 0) (if (== a 1) (return 1) (return (+ (funcall fib (- a 1)) (funcall fib (- a 2)))))))) (function main () ((return (funcall fib 10))))))
-(define fibTest '((function fib (a) ((return 0))) (function main () ((return (funcall fib 10))))))
 
-;test 15: first is supposed to return 141, is returning 142
 
 
 
@@ -570,6 +525,11 @@
 
 
 ;************test cases*************
+
+(define fibTest '((function fib (a) ((if (== a 0) (return 0) (if (== a 1) (return 1) (return (+ (funcall fib (- a 1)) (funcall fib (- a 2)))))))) (function main () ((return (funcall fib 10))))))
+(define fibTest '((function fib (a) ((return 0))) (function main () ((return (funcall fib 10))))))
+
+;test 15: first is supposed to return 141, is returning 142
 
 ;debug interpreter for hardcoded variables
 ;tests used to build interpreter
