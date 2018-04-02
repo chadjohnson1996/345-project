@@ -349,7 +349,11 @@
 
 (define functionDefineHandler
   (lambda (state lis continuations)
-    (updateState state (list (car lis) (list (cdr lis) state)))))
+    (secondPassFunctionDefinition (updateState state (list (car lis) (cdr lis))) (car lis))))
+
+(define secondPassFunctionDefinition
+  (lambda (state key)
+    (updateState state (list key (list (getState state key) state)))))
 
 (define prepStateForCall
   (lambda (state def lis)
