@@ -211,13 +211,14 @@
 (define lessEqualHandler
   (lambda (state lis continuations)
     (cond
-      ((or (lessHandler state lis continuations) (equalHandler state lis) continuations) #t)
+      ((<= (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
       (else #f))))
+
 
 (define greaterEqualHandler
   (lambda (state lis continuations)
     (cond
-      ((or (greaterHandler state lis continuations) (equalHandler state lis continuations)) #t)
+      ((>= (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
       (else #f))))
 
 
@@ -234,10 +235,6 @@
 
 ;*************state mutator functions******************
 ;all operations with side effects below (including break/continue/throw/catch)
-
-
-
-
 (define enterBlock
   (lambda (state lis continuations)
     (cdr (evalExpressionList (addFrame state) lis continuations)))) ;enters a block by adding a state frame and removing it when it is done
@@ -312,7 +309,7 @@
 
 (define throwHandler
   (lambda (state lis continuations)
-    ((continuations 'catch) state (oEval state (car lis) continuations))))
+    ((continuations 'catch) (oEval state (car lis) continuations))))
 
 (define tryHandler
   (lambda (state lis continuations)
@@ -338,8 +335,10 @@
       ;else add catch handler that pops added frames from state, adds thrown value to new layer on popped state
       ;invokes catch block on mutated state
       ;and then pops frames catch handler added and breaks with that state
-      (else (continuationFactory continuations 'catch (lambda (state2 thrown)
-                                                (break (revertToOldLevel (evalExpressionList (updateState (addFrame (revertToOldLevel state2 state)) (list (caar lis) thrown)) (cadr lis) continuations) state))))))))
+      (else (continuationFactory continuations 'catch (lambda (thrown)
+                                                        (begin
+                                                          (evalExpressionList (declareHelper (addFrame state) (list (caar lis) thrown)) (cadr lis) continuations)
+                                                          (break state))))))))
 
 ;invokes finally expression list on state
 (define finallyHandler
@@ -401,15 +400,7 @@
 (define functionCallHandler
   (lambda (state lis continuations)
     (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
-;(define functionCallHandler
- ; (lambda (state lis)
-  ;  (begin
-   ;   (display "functionCallHandler")
-      ;(display state)
-    ;  (newline)
-     ; (display lis)
-      ;(newline)
-    ;(callInterpreter (prepStateForCall state (caar lis) (cdr lis)) (cadr (car lis))))))
+
 
 (define functionCallHandlerMutate
   (lambda (state lis continuations)
