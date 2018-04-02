@@ -56,7 +56,8 @@
 (define getStateHelper
   (lambda (state key)
     (cond
-     ((null? state) (error "Variable must be declared before reference"))
+     ;((null? state) (error "Variable must be declared before reference"))
+     ((null? state) (error key))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (caadar state))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -340,9 +341,40 @@
   (lambda (state lis continuations)
     (updateState state (list (car lis) (cdr lis)))))
 
+(define prepStateForCall
+  (lambda (state def lis)
+    (cons (bootstrapFunctionParams state (list (createStateFrame)) def lis) (list (car state)))))
+
+(define bootstrapFunctionParams
+  (lambda (oldState state def lis)
+    (begin
+      (display "bootstrapFunctionParams")
+      (display oldState)
+      (newline)
+      (display state)
+      (newline)
+      (display def)
+      (newline)
+      (display lis)
+      (newline)
+      (newline)
+      (cond
+      ((null? def) state)
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (oEval oldState (car lis)) (cadr state))) (cdr def) (cdr lis))))))) 
+
+(define prepStateAfterCall
+  (lambda (result state)
+    (cons (car result) (cdr state))))
+
 (define functionCallHandler
-  (lambda (state lis continuations)
-    (callInterpreter state (cadr (getState state lis)))))
+  (lambda (state lis)
+    (begin
+      (display "functionCallHandler")
+      (display state)
+      (newline)
+      (display lis)
+      (newline)
+    (callInterpreter (prepStateForCall state (caar lis) (cdr lis)) (cadr (car lis))))))
     
 ;***********operation functions****************
 ;logistic functions that run the interpreter
@@ -385,13 +417,19 @@
       ((eq? operator '&&) andHandler)
       ((eq? operator '||) orHandler)
       ((eq? operator '!) invertBool)
+      ((eq? operator 'funcall) functionCallHandler)
       (else getState))))
 
 ;helper for sInterpreter that ensures that it carries appropriate continuations (calls bootstrapContinuations)
 (define callInterpreter
   (lambda (state parsed)
-    (call/cc (lambda (break)
-               (sInterpreter state parsed (bootstrapContinuations break))))))
+    (begin
+      (display "callInterpreter")
+      (display state)
+      (newline)
+      (newline)
+      (call/cc (lambda (break)
+               (sInterpreter state parsed (bootstrapContinuations break)))))))
 
 (define bootstrapGlobal
   (lambda (state parsed)
@@ -399,7 +437,7 @@
     
 (define mainInterpreter
   (lambda (state parsed)
-    (functionCallHandler (bootstrapGlobal state parsed) 'main (lambda (v) v))))
+    (functionCallHandler (bootstrapGlobal state parsed) (list (getState (bootstrapGlobal state parsed) 'main)))))
     
 
 ;helper that sets continuations
@@ -420,9 +458,13 @@
 ;umbrella function that interpreter runs inside
 (define sInterpreter
   (lambda (state parsed continuations)
+    (begin
+      (display "sInterpreter")
+      (display state)
+      (newline)
     (cond
       ((null? parsed) state)
-      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations)))))
+      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations))))))
 
 ;deals with a line of code at a time
 (define evalExpressionList
@@ -460,6 +502,13 @@
 (define interpret
   (lambda (fileName)
     (maskReturn (mainInterpreter (createState) (parser fileName)))))
+
+(define debugInterpret
+  (lambda (lis)
+    (maskReturn (mainInterpreter (createState) lis))))
+
+(define fibTest '((function fib (a) ((if (== a 0) (return 0) (if (== a 1) (return 1) (return (+ (funcall fib (- a 1)) (funcall fib (- a 2)))))))) (function main () ((return (funcall fib 10))))))
+(define fibTest '((function fib (a) ((return 0))) (function main () ((return (funcall fib 10))))))
 
 
 
