@@ -8,9 +8,22 @@
 
 ;hope we commented enough this time, main function to run interpreter is at bottom
 
+;*******new state functions to help with invoking functions********
+
+;preps the state for a function call, defines parameters and adds them to closure
+(define prepStateForCall
+  (lambda (state def lis continuations)
+    (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
+
+;figures out the parameters of a function and adds them to the functions new state, after they are assigned
+(define bootstrapFunctionParams
+  (lambda (oldState state def lis continuations)
+      (cond
+        ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
+      ((null? def) state)
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations)))))
 
 ;**************utility functions************
-
 
 ;creates the default state
 (define createState
@@ -350,19 +363,6 @@
   (lambda (state key)
     (updateState state (list key (list (getState state key) state)))))
 
-;preps the state for a function call, defines parameters and adds them to closure
-(define prepStateForCall
-  (lambda (state def lis continuations)
-    (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
-
-;figures out the parameters of a function and adds them to the functions new state, after they are assigned
-(define bootstrapFunctionParams
-  (lambda (oldState state def lis continuations)
-      (cond
-        ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
-      ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))) 
-
 ;helper method to call functions
 (define functionCallHelper
   (lambda (state lis closure continuations)
@@ -518,11 +518,6 @@
 (define debugInterpret
   (lambda (lis)
     (maskReturn (mainInterpreter (createState) lis))))
-
-
-
-
-
 
 
 
