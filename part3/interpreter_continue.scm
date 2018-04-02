@@ -48,11 +48,11 @@
 (define getStateNoCheckAssign
   (lambda (state key)
     (begin
-      (display "state")
-      (display state)
-      (newline)
-      (display key)
-      (newline)
+      ;(display "state")
+      ;(display state)
+      ;(newline)
+      ;(display key)
+     ; (newline)
     (cond
       ((number? key) key) ;if the key is a number just return it
       ((boolean? key) key) ;if the key is a boolean just return it
@@ -349,11 +349,11 @@
 
 (define functionDefineHandler
   (lambda (state lis continuations)
-    (updateState state (list (car lis) (cdr lis)))))
+    (updateState state (list (car lis) (list (cdr lis) state)))))
 
 (define prepStateForCall
   (lambda (state def lis)
-    (cons (bootstrapFunctionParams state (createStateFrame) def lis) (list (last state)))))
+    (cons (bootstrapFunctionParams state (createStateFrame) def lis) state)))
 
 (define last
   (lambda (lis)
@@ -383,15 +383,28 @@
   (lambda (result state)
     (cons (car result) (cdr state))))
 
-(define functionCallHandler
-  (lambda (state lis)
+(define functionCallHelper
+  (lambda (state lis closure)
     (begin
       (display "functionCallHandler")
-      (display state)
+      ;(display state)
       (newline)
       (display lis)
       (newline)
-    (callInterpreter (prepStateForCall state (caar lis) (cdr lis)) (cadr (car lis))))))
+    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis)) (cadr (car lis))))))
+
+(define functionCallHandler
+  (lambda (state lis)
+    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis))))
+;(define functionCallHandler
+ ; (lambda (state lis)
+  ;  (begin
+   ;   (display "functionCallHandler")
+      ;(display state)
+    ;  (newline)
+     ; (display lis)
+      ;(newline)
+    ;(callInterpreter (prepStateForCall state (caar lis) (cdr lis)) (cadr (car lis))))))
 
 (define functionCallHandlerMutate
   (lambda (state lis continuations)
