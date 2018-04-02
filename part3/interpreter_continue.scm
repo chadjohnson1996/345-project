@@ -156,77 +156,77 @@
 
 
 (define addHandler
-  (lambda (state lis)
-    (+ (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (+ (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 (define subtractHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((null? (cdr lis)) (- 0 (oEval state (car lis))))
-      (else (- (oEval state (car lis)) (oEval state (cadr lis)))))))
+      ((null? (cdr lis)) (- 0 (oEval state (car lis) continuations)))
+      (else (- (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))))
 
 (define multiplyHandler
-  (lambda (state lis)
-    (* (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (* (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 (define divideHandler
-  (lambda (state lis)
-    (quotient (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (quotient (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 (define modHandler
-  (lambda (state lis)
-    (modulo (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (modulo (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 (define equalHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((equal? (oEval state (car lis)) (oEval state (cadr lis))) #t)
+      ((equal? (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
       (else #f))))
 
 (define invertBool
-  (lambda (state val)
+  (lambda (state val continuations)
     (cond
-      ((eq? (oEval state (car val)) #t) #f)
+      ((eq? (oEval state (car val) continuations) #t) #f)
       (else #t))))
 
 (define notEqualHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((equalHandler state lis) #f)
+      ((equalHandler state lis continuations) #f)
       (else #t))))
 
 (define greaterHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((> (oEval state (car lis)) (oEval state (cadr lis))) #t)
+      ((> (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
       (else #f))))
 
 (define lessHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((< (oEval state (car lis)) (oEval state (cadr lis))) #t)
+      ((< (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
       (else #f))))
 
 (define lessEqualHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((or (lessHandler state lis) (equalHandler state lis)) #t)
+      ((or (lessHandler state lis continuations) (equalHandler state lis) continuations) #t)
       (else #f))))
 
 (define greaterEqualHandler
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
-      ((or (greaterHandler state lis) (equalHandler state lis)) #t)
+      ((or (greaterHandler state lis continuations) (equalHandler state lis continuations)) #t)
       (else #f))))
 
 
 (define andHandler
-  (lambda (state lis)
-    (and (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (and (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 (define orHandler
-  (lambda (state lis)
-    (or (oEval state (car lis)) (oEval state (cadr lis)))))
+  (lambda (state lis continuations)
+    (or (oEval state (car lis) continuations) (oEval state (cadr lis) continuations))))
 
 
 
@@ -256,7 +256,7 @@
 (define ifHandler
   (lambda (state lis continuations)
     (cond
-      ((oEval state (car lis)) (oMutate state (cadr lis) continuations))
+      ((oEval state (car lis) continuations) (oMutate state (cadr lis) continuations))
       ((not (null? (cddr lis))) (oMutate state (caddr lis) continuations))
       (else state))))
 
@@ -265,19 +265,19 @@
   (lambda (state lis continuations)
     (cond
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
-      ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis)) '()))))
-      (else (updateState state (cons (car lis) (cons (oEval state ( cadr lis)) '())))))))
+      ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis) continuations) '()))))
+      (else (updateState state (cons (car lis) (cons (oEval state (cadr lis) continuations) '())))))))
 
 
 (define declareHandler
   (lambda (state lis continuations)
     (cond
       ((null? (cdr lis)) (updateState state (emptyVar (car lis))))
-      (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis)) '())))))))
+      (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis) continuations) '())))))))
 
 (define returnHandler
   (lambda (state lis continuations)
-    ((continuations 'return)(oEval state (car lis)))))
+    ((continuations 'return)(oEval state (car lis) continuations))))
      ;gets the return handler and invokes it on the state
 
 
@@ -305,13 +305,13 @@
 (define whileHandler
   (lambda (state lis continuations)
     (cond
-      ((equal? (oEval state (car lis)) #t) 
+      ((equal? (oEval state (car lis) continuations) #t) 
                (whileHandler (oMutate state (cadr lis) continuations) lis continuations))
       (else state))))
 
 (define throwHandler
   (lambda (state lis continuations)
-    ((continuations 'catch) state (oEval state (car lis)))))
+    ((continuations 'catch) state (oEval state (car lis) continuations))))
 
 (define tryHandler
   (lambda (state lis continuations)
@@ -356,8 +356,8 @@
     (updateState state (list key (list (getState state key) state)))))
 
 (define prepStateForCall
-  (lambda (state def lis)
-    (cons (bootstrapFunctionParams state (createStateFrame) def lis) state)))
+  (lambda (state def lis continuations)
+    (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
 
 (define last
   (lambda (lis)
@@ -366,7 +366,7 @@
       (else (last (cdr lis))))))
 
 (define bootstrapFunctionParams
-  (lambda (oldState state def lis)
+  (lambda (oldState state def lis continuations)
     (begin
       (display "bootstrapFunctionParams")
       (display oldState)
@@ -381,25 +381,25 @@
       (cond
         ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis))) (cadr state))) (cdr def) (cdr lis))))))) 
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations)))))) 
 
 (define prepStateAfterCall
   (lambda (result state)
     (cons (car result) (cdr state))))
 
 (define functionCallHelper
-  (lambda (state lis closure)
+  (lambda (state lis closure continuations)
     (begin
       (display "functionCallHandler")
       ;(display state)
       (newline)
       (display lis)
       (newline)
-    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis)) (cadr (car lis))))))
+    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis))))))
 
 (define functionCallHandler
-  (lambda (state lis)
-    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis))))
+  (lambda (state lis continuations)
+    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
 ;(define functionCallHandler
  ; (lambda (state lis)
   ;  (begin
@@ -418,7 +418,7 @@
       (newline)
       (display lis)
       (newline)
-    (functionCallHandler state (evalArgs state lis))
+    (functionCallHandler state (evalArgs state lis continuations) continuations)
     state)))
     
 ;***********operation functions****************
@@ -483,7 +483,9 @@
     
 (define mainInterpreter
   (lambda (state parsed)
-    (functionCallHandler (bootstrapGlobal state parsed) (list (getState (bootstrapGlobal state parsed) 'main)))))
+    (call/cc
+     (lambda (break)
+               (functionCallHandler (bootstrapGlobal state parsed) (list (getState (bootstrapGlobal state parsed) 'main)) (bootstrapContinuations break))))))
     
 
 ;helper that sets continuations
@@ -531,17 +533,17 @@
 
 ;Mvalue - gets appropriate expression operator and calls it on contents
 (define oEval
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((null? lis) lis)
       ((not (list? lis)) (getState state lis))
-      (else ((getHandler (car lis)) state (evalArgs state (cdr lis)))))))
+      (else ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations) continuations)))))
 
 (define evalArgs
-  (lambda (state lis)
+  (lambda (state lis continuations)
     (cond
       ((null? lis) lis)
-      (else (cons (oEval state (car lis)) (evalArgs state (cdr lis)))))))
+      (else (cons (oEval state (car lis) continuations) (evalArgs state (cdr lis) continuations))))))
 
 ;masks boolean returns to return non-scheme terms
 (define maskReturn
