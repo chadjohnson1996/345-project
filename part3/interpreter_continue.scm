@@ -15,7 +15,7 @@
 ;creates the default state
 (define createState
   (lambda ()
-    '(((true false) (#t #f)))))
+    (updateState (updateState '((() ())) '(true #t)) '(false #f))))
 
 ;creates an empty state frame                                                       
 (define createStateFrame
@@ -47,10 +47,16 @@
 ;gets state without checking assignment
 (define getStateNoCheckAssign
   (lambda (state key)
+    (begin
+      (display "state")
+      (display state)
+      (newline)
+      (display key)
+      (newline)
     (cond
       ((number? key) key) ;if the key is a number just return it
       ((boolean? key) key) ;if the key is a boolean just return it
-      (else (getStateHelper state key)))))
+      (else (getStateHelper state key))))))
 
 ;helper method to get the state
 (define getStateHelper
@@ -59,7 +65,7 @@
      ;((null? state) (error "Variable must be declared before reference"))
      ((null? state) (error key))
      ((null? (caar state)) (getStateHelper (cdr state) key))
-     ((eq? key (caaar state)) (caadar state))
+     ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
 
 ;method called to update or declare a variable, calls the necesary helper according to the case
@@ -75,7 +81,10 @@
     (cond
     ((null? state) (error "Invalid state, never should be hit")) ;more for us than for anything
     ((null? (caar state)) (cons (createStateFrame) (updateHelper (cdr state) lis)))
-    ((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cadr lis) (cdadar state))) (cdr state)))
+    ;((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cadr lis) (cdadar state))) (cdr state)))
+    ((eq? (car lis) (caaar state)) (begin
+                                     (set-box! (caadar state)(cadr lis))
+                                     state))
     (else
      (let ((result (updateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) lis))) ;let used here to avoid tedious and complicated duplication of calls to updateHelper
               (cons (list (cons (caaar state) (caar result)) (cons (caadar state) (cadar result))) (cdr result))
@@ -84,7 +93,8 @@
 ;declares a variable on current frame
 (define declareHelper
   (lambda (state lis)
-    (cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
+    ;(cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
+(cons (list (cons (car lis) (caar state)) (cons (box (cadr lis)) (cadar state))) (cdr state))))
         
 ;helper method to check if a variable is declared
 (define isDeclaredHelper
@@ -367,7 +377,7 @@
       (cond
         ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (oEval oldState (car lis)) (cadr state))) (cdr def) (cdr lis))))))) 
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis))) (cadr state))) (cdr def) (cdr lis))))))) 
 
 (define prepStateAfterCall
   (lambda (result state)
