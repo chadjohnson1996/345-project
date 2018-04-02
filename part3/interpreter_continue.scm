@@ -382,6 +382,17 @@
       (display lis)
       (newline)
     (callInterpreter (prepStateForCall state (caar lis) (cdr lis)) (cadr (car lis))))))
+
+(define functionCallHandlerMutate
+  (lambda (state lis continuations)
+    (begin
+      (display "functionCallHandlerMutate")
+      (display state)
+      (newline)
+      (display lis)
+      (newline)
+    (functionCallHandler state (evalArgs state lis))
+    state)))
     
 ;***********operation functions****************
 ;logistic functions that run the interpreter
@@ -404,6 +415,7 @@
       ((eq? operator 'continue) continueHandler)
       ((eq? operator 'break) breakHandler)
       ((eq? operator 'function) functionDefineHandler)
+      ((eq? operator 'funcall) functionCallHandlerMutate)
       (else (error operator)))))
 
 ;get function for expressions
