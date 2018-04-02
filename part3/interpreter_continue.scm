@@ -493,8 +493,15 @@
     (cond
       ((null? lis) lis)
       ((not (list? lis)) (getState state lis))
-      ((null? (cddr lis)) ((getHandler (car lis)) state (list (oEval state (cadr lis)))))
+      ((eq? (car lis) 'funcall) (functionCallHandler state (evalArgs state (cdr lis))))
       (else ((getHandler (car lis)) state (list (oEval state (cadr lis)) (oEval state (caddr lis))))))))
+      ;(else ((getHandler (car lis)) state (evalArgs state (cdr lis)))))))
+
+(define evalArgs
+  (lambda (state lis)
+    (cond
+      ((null? lis) lis)
+      (else (cons (oEval state (car lis)) (evalArgs state (cdr lis)))))))
 
 ;masks boolean returns to return non-scheme terms
 (define maskReturn
