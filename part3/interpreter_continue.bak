@@ -269,9 +269,6 @@
     ((continuations 'return)(oEval state (car lis)))))
      ;gets the return handler and invokes it on the state
 
-
-    
-
 ;preps break and continue for while invokation
 ;then invokes while
 (define prepWhile
@@ -336,14 +333,7 @@
 
 
 
-(define functionDefineHandler
-  (lambda (state lis continuations)
-    (updateState state (list (car lis) (cdr lis)))))
 
-(define functionCallHandler
-  (lambda (state lis continuations)
-    (callInterpreter state (cadr (getState state lis)))))
-    
 ;***********operation functions****************
 ;logistic functions that run the interpreter
 
@@ -364,7 +354,6 @@
       ((eq? operator 'finally) finallyHandler)
       ((eq? operator 'continue) continueHandler)
       ((eq? operator 'break) breakHandler)
-      ((eq? operator 'function) functionDefineHandler)
       (else (error operator)))))
 
 ;get function for expressions
@@ -393,15 +382,6 @@
     (call/cc (lambda (break)
                (sInterpreter state parsed (bootstrapContinuations break))))))
 
-(define bootstrapGlobal
-  (lambda (state parsed)
-    (sInterpreter state parsed (lambda (v) v))))
-    
-(define mainInterpreter
-  (lambda (state parsed)
-    (functionCallHandler (bootstrapGlobal state parsed) 'main (lambda (v) v))))
-    
-
 ;helper that sets continuations
 (define bootstrapContinuations
   (lambda (break)
@@ -421,7 +401,7 @@
 (define sInterpreter
   (lambda (state parsed continuations)
     (cond
-      ((null? parsed) state)
+      ((null? parsed) (error "no return specified"))
       (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations)))))
 
 ;deals with a line of code at a time
@@ -459,7 +439,7 @@
 ;main - creates base state, calls parser on test file, starts interpreting process, masks return
 (define interpret
   (lambda (fileName)
-    (maskReturn (mainInterpreter (createState) (parser fileName)))))
+    (maskReturn (callInterpreter (createState) (parser fileName)))))
 
 
 
