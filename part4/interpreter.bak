@@ -67,8 +67,7 @@
 (define getStateHelper
   (lambda (state key)
     (cond
-      ;((null? state) (display key))
-     ((null? state) (begin (display key) (error "Variable must be declared before reference")))
+     ((null? state) (error "Variable must be declared before reference"))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -272,10 +271,9 @@
 
 (define declareHandler
   (lambda (state lis continuations)
-    (begin
     (cond
       ((null? (cdr lis)) (declareHelper state (emptyVar (car lis))))
-      (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis) continuations) '()))))))))
+      (else (declareHelper state (cons (car lis) (cons (oEval state (cadr lis) continuations) '())))))))
 
 (define returnHandler
   (lambda (state lis continuations)
@@ -371,9 +369,7 @@
 ;seperate of parameters makes it easy to work with
 (define functionCallHandler
   (lambda (state lis continuations)
-    (begin
-      (display lis) (newline)
-    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations))))
+    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
 
 
 ;handles a function invokation by itself that is not a part of an expression list, this one is different because you need to evaluate the parameters
@@ -383,44 +379,6 @@
     (begin
     (functionCallHandler state (evalArgs state lis continuations) continuations)
     state)))
-
-(define classDefineHandler
-  (lambda (state lis continuations)
-    (updateState state (list (car lis) (createClassClosure (caddr lis))))))
-
-(define staticMethodClosure
-  (lambda (lis)
-    (cond
-      ((null? lis) lis)
-      ((eq? (caar lis) 'static-function) (cons (cddar lis) (staticMethodClosure (cdr lis))))
-      (else (staticMethodClosure (cdr lis))))))
-
-
-(define instanceDefinition
-  (lambda (lis)
-    (cond
-      ((null? lis) lis)
-      ((eq? (caar lis) 'static-function) (instanceDefinition (cdr lis)))
-      (else (cons (car lis) (instanceDefinition (cdr lis)))))))
-
-    
-(define createClassClosure
-  (lambda (lis)
-    (list (instanceDefinition lis) (staticMethodClosure lis))))
-
-(define newHandler
-  (lambda (state lis continuations)
-    (begin
-      (display "newHandler")
-      (newline)
-      (display lis)
-      (newline)
-    (createInstanceClosure (createState) (caar lis)))))
-
-(define createInstanceClosure
-  (lambda (state lis)
-    (bootstrapGlobal state lis)))
-    
     
 ;***********operation functions****************
 ;logistic functions that run the interpreter
@@ -444,10 +402,7 @@
       ((eq? operator 'break) breakHandler)
       ((eq? operator 'function) functionDefineHandler)
       ((eq? operator 'funcall) functionCallHandlerMutate)
-      ((eq? operator 'class) classDefineHandler)
       (else (error operator)))))
-
-
 
 ;get function for expressions
 (define getHandler
@@ -468,7 +423,6 @@
       ((eq? operator '||) orHandler)
       ((eq? operator '!) invertBool)
       ((eq? operator 'funcall) functionCallHandler)
-      ((eq? operator 'new) newHandler)
       (else getState))))
 
 
@@ -487,10 +441,10 @@
 ;main interpreter function, call/cc is a little redundant, but we have to bootstrap our initial continuation list (top level return) at some point
 ;redundnacy doesn't matter
 (define mainInterpreter
-  (lambda (state parsed className)
+  (lambda (state parsed)
     (call/cc
      (lambda (break)
-               (sInterpreter (bootstrapGlobal state parsed) (cadr (caadr (getState (bootstrapGlobal state parsed) className))) (bootstrapContinuations break))))))
+               (functionCallHandler (bootstrapGlobal state parsed) (list (getState (bootstrapGlobal state parsed) 'main)) (bootstrapContinuations break))))))
     
 
 ;helper that sets continuations
@@ -511,16 +465,9 @@
 ;umbrella function that interpreter runs inside
 (define sInterpreter
   (lambda (state parsed continuations)
-    (begin
-      (display "interpret body")
-      (newline)
-      (display parsed)
-      (newline)
-      (display state)
-      (newline)
     (cond
       ((null? parsed) state)
-      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations))))))
+      (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations)))))
 
 ;deals with a line of code at a time
 (define evalExpressionList
@@ -537,17 +484,12 @@
       ((null? lis) state)
       (else ((getMutator (car lis)) state (cdr lis) continuations)))))
 
-(define dotHandler
-  (lambda (objectClosure key)
-    (getState objectClosure key)))
-    
 ;Mvalue - gets appropriate expression operator and calls it on contents
 (define oEval
   (lambda (state lis continuations)
     (cond
       ((null? lis) lis)
       ((not (list? lis)) (getState state lis))
-      ((eq? (car lis) 'dot) (dotHandler (oEval state (cadr lis) continuations) (caddr lis)))
       (else ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations) continuations)))))
 
 ;evaluates an arg list for oEval, generic function that works with abitrary number of parameters, unary, binary, more for function calls, etc
@@ -567,8 +509,8 @@
 
 ;main - creates base state, calls parser on test file, starts interpreting process, masks return
 (define interpret
-  (lambda (fileName className)
-    (maskReturn (mainInterpreter (createState) (parser fileName) className))))
+  (lambda (fileName)
+    (maskReturn (mainInterpreter (createState) (parser fileName)))))
 
 (define debugInterpret
   (lambda (lis)
