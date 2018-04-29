@@ -1,29 +1,13 @@
-;please see other previous on time submission by Griffin Saiia. I am just submitting this because no submission showed up for me (I think I may have not formally joined group again or something?)
-;See comments on submission for more explanation
-
 (load "functionParser.scm")
 ;use pretty big
 ;Chad Johnson, Griffin Saiia
-;PLC Project 1 part 2
+;PLC Project 1 part 3
 
-;hope we commented enough this time, main function to run interpreter is at bottom
+;main function to run interpreter is at bottom
 
-;*******new state functions to help with invoking functions********
-
-;preps the state for a function call, defines parameters and adds them to closure
-(define prepStateForCall
-  (lambda (state def lis continuations)
-    (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
-
-;figures out the parameters of a function and adds them to the functions new state, after they are assigned
-(define bootstrapFunctionParams
-  (lambda (oldState state def lis continuations)
-      (cond
-        ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
-      ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations)))))
 
 ;**************utility functions************
+
 
 ;creates the default state
 (define createState
@@ -49,7 +33,6 @@
 (define addToFrameNoCheck
   (lambda (state key value)
     (cons (list (cons key (caar state)) (cons value (cadar state))) (cdr state))))
-
 ;state update and get
 (define getState
   (lambda (state key)
@@ -70,7 +53,8 @@
 (define getStateHelper
   (lambda (state key)
     (cond
-     ((null? state) (error "Variable must be declared before reference"))
+     ;((null? state) (error "Variable must be declared before reference"))
+     ((null? state) (error key))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -88,6 +72,7 @@
     (cond
     ((null? state) (error "Invalid state, never should be hit")) ;more for us than for anything
     ((null? (caar state)) (cons (createStateFrame) (updateHelper (cdr state) lis)))
+    ;((eq? (car lis) (caaar state)) (cons (list (cons (car lis) (cdaar state)) (cons (cadr lis) (cdadar state))) (cdr state)))
     ((eq? (car lis) (caaar state)) (begin
                                      (set-box! (caadar state)(cadr lis))
                                      state))
@@ -99,7 +84,8 @@
 ;declares a variable on current frame
 (define declareHelper
   (lambda (state lis)
-    (cons (list (cons (car lis) (caar state)) (cons (box (cadr lis)) (cadar state))) (cdr state))))
+    ;(cons (list (cons (car lis) (caar state)) (cons (cadr lis) (cadar state))) (cdr state))))
+(cons (list (cons (car lis) (caar state)) (cons (box (cadr lis)) (cadar state))) (cdr state))))
         
 ;helper method to check if a variable is declared
 (define isDeclaredHelper
@@ -238,7 +224,64 @@
 
 
 
+;************function functions****************
+
+
+;sets up state for function definition
+(define functionDefineHandler
+  (lambda (state lis continuations)
+    (secondPassFunctionDefinition (updateState state (list (car lis) (cdr lis))) (car lis))))
+
+;defines function
+(define secondPassFunctionDefinition
+  (lambda (state key)
+    (updateState state (list key (list (getState state key) state)))))
+
+;readies function environment
+(define prepStateForCall
+  (lambda (state def lis continuations)
+    (cons (bootstrapFunctionParams state (createStateFrame) def lis continuations) state)))
+
+;returns global state layer
+(define last
+  (lambda (lis)
+    (cond
+      ((null? (cdr lis)) (car lis))
+      (else (last (cdr lis))))))
+
+;creates environment
+(define bootstrapFunctionParams
+  (lambda (oldState state def lis continuations)
+    (cond
+      ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
+      ((null? def) state)
+      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))) 
+
+;updates state after function is executed
+(define prepStateAfterCall
+  (lambda (result state)
+    (cons (car result) (cdr state))))
+
+;executes function
+(define functionCallHelper
+  (lambda (state lis closure continuations)
+    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations)))
+
+;handler for funtion calls
+(define functionCallHandler
+  (lambda (state lis continuations)
+    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
+
+;function evaluated, and state returned
+(define functionCallHandlerMutate
+  (lambda (state lis continuations)
+    (begin
+    (functionCallHandler state (evalArgs state lis continuations) continuations)
+    state)))
+
+
 ;*************state mutator functions******************
+
 ;all operations with side effects below (including break/continue/throw/catch)
 (define enterBlock
   (lambda (state lis continuations)
@@ -312,10 +355,9 @@
                (whileHandler (oMutate state (cadr lis) continuations) lis continuations))
       (else state))))
 
-;handles throw
 (define throwHandler
   (lambda (state lis continuations)
-    ((continuations 'catch)(oEval state (car lis) continuations))))
+    ((continuations 'catch) (oEval state (car lis) continuations))))
 
 (define tryHandler
   (lambda (state lis continuations)
@@ -352,36 +394,7 @@
     (evalExpressionList state (car lis) continuations)))
 
 
-;first pass define function
-(define functionDefineHandler
-  (lambda (state lis continuations)
-    (secondPassFunctionDefinition (updateState state (list (car lis) (cdr lis))) (car lis))))
 
-;second pass update already defined function and stores it with closure of current state
-;this has to happen after function is already defined so it is in its own closure and can recursively call itself
-(define secondPassFunctionDefinition
-  (lambda (state key)
-    (updateState state (list key (list (getState state key) state)))))
-
-;helper method to call functions
-(define functionCallHelper
-  (lambda (state lis closure continuations)
-    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations)))
-
-;function call handler, seperates the function body from the closure that is stored in state and calls helper function
-;seperate of parameters makes it easy to work with
-(define functionCallHandler
-  (lambda (state lis continuations)
-    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations)))
-
-
-;handles a function invokation by itself that is not a part of an expression list, this one is different because you need to evaluate the parameters
-;if it was part of an expression list they would be evaluated already
-(define functionCallHandlerMutate
-  (lambda (state lis continuations)
-    (begin
-    (functionCallHandler state (evalArgs state lis continuations) continuations)
-    state)))
     
 ;***********operation functions****************
 ;logistic functions that run the interpreter
@@ -428,21 +441,20 @@
       ((eq? operator 'funcall) functionCallHandler)
       (else getState))))
 
-
+(define rootCallInterpreter
+  (lambda (state parsed)
+    (call/cc (lambda (break)
+               (callInterpreter state parsed (bootstrapContinuations break))))))
 ;helper for sInterpreter that ensures that it carries appropriate continuations (calls bootstrapContinuations)
 (define callInterpreter
   (lambda (state parsed continuations)
-      (call/cc (lambda (break)
-               (sInterpreter state parsed (continuationFactory continuations 'return break))))))
+    (call/cc (lambda (break)
+          (sInterpreter state parsed (continuationFactory continuations 'return break))))))
 
-;does the global bootstrapping
 (define bootstrapGlobal
   (lambda (state parsed)
     (sInterpreter state parsed (lambda (v) v))))
-
-
-;main interpreter function, call/cc is a little redundant, but we have to bootstrap our initial continuation list (top level return) at some point
-;redundnacy doesn't matter
+    
 (define mainInterpreter
   (lambda (state parsed)
     (call/cc
@@ -495,7 +507,6 @@
       ((not (list? lis)) (getState state lis))
       (else ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations) continuations)))))
 
-;evaluates an arg list for oEval, generic function that works with abitrary number of parameters, unary, binary, more for function calls, etc
 (define evalArgs
   (lambda (state lis continuations)
     (cond
@@ -519,15 +530,18 @@
   (lambda (lis)
     (maskReturn (mainInterpreter (createState) lis))))
 
-
-
-
-;************test cases*************
-
 (define fibTest '((function fib (a) ((if (== a 0) (return 0) (if (== a 1) (return 1) (return (+ (funcall fib (- a 1)) (funcall fib (- a 2)))))))) (function main () ((return (funcall fib 10))))))
 (define fibTest '((function fib (a) ((return 0))) (function main () ((return (funcall fib 10))))))
 
 ;test 15: first is supposed to return 141, is returning 142
+
+
+
+
+
+
+
+;************test cases*************
 
 ;debug interpreter for hardcoded variables
 ;tests used to build interpreter
