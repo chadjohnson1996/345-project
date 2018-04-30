@@ -1,7 +1,7 @@
 (load "classParser.scm")
 ;use pretty big
 ;Chad Johnson, Griffin Saiia
-;PLC Project 1 part 3
+;PLC Project 1 part 
 
 ;hope we commented enough this time, main function to run interpreter is at bottom
 
@@ -18,14 +18,19 @@
       (cond
         ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
-      (else (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations)))))
+      (else (begin
+              (display "function") (newline)
+              (display def) (newline)
+              (display lis) (newline)
+              ;(bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))))
+(bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (car lis)) (cadr state))) (cdr def) (cdr lis) continuations))))))
 
 ;**************utility functions************
 
 ;creates the default state
 (define createState
   (lambda ()
-    (updateState (updateState '((() ())) '(true #t)) '(false #f))))
+    (updateState (updateState (updateState '((() ())) '(true #t)) '(false #f)) '(this null))))
 
 ;creates an empty state frame                                                       
 (define createStateFrame
@@ -68,7 +73,7 @@
   (lambda (state key)
     (cond
       ;((null? state) (display key))
-     ((null? state) (begin (display key) (error "Variable must be declared before reference")))
+     ((null? state) (begin (display "Key test")(display key) (error "Variable must be declared before reference")))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -150,9 +155,6 @@
       ((null? state) state)
       (else (truncateLevels (cdr state) (- levels 1))))))
        
-
-
-
 
 ;**********expression evaluator functions*********
 ;any operation that does not have side effects is below
@@ -261,13 +263,23 @@
       ((not (null? (cddr lis))) (oMutate state (caddr lis) continuations))
       (else state))))
 
+(define updateReference
+  (lambda (ref value)
+    (set-box! ref value)))
 
+;(define getReference
+  
+    
 (define assignHandler
   (lambda (state lis continuations)
+    (begin
+      ;(display "assign") (newline)
+      ;(display lis) (newline)
     (cond
+      ((and (list? (car lis)) (eq? (caar lis) 'dot)) (begin (assignHandler (getState state 'this) (list (caddar lis) (oEval state (cadr lis) continuations)) continuations) state))
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
       ((list? (cadr lis)) (updateState state (cons (car lis) (cons (oEval state (cadr lis) continuations) '()))))
-      (else (updateState state (cons (car lis) (cons (oEval state (cadr lis) continuations) '())))))))
+      (else (updateState state (cons (car lis) (cons (oEval state (cadr lis) continuations) '()))))))))
 
 
 (define declareHandler
@@ -303,6 +315,7 @@
                                                                                                              (lambda (state2 continuations2)
                                                                                                                   (break (revertToOldLevel (whileHandler state2 lis continuations2) state)
                                                                                                                          ))))))))
+
 ;nothing fancy here, all magic is above
 (define whileHandler
   (lambda (state lis continuations)
@@ -364,16 +377,22 @@
 
 ;helper method to call functions
 (define functionCallHelper
-  (lambda (state lis closure continuations)
-    (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations)))
+  (lambda (state lis closure continuations this)
+    (begin
+      (display "function call") (newline)
+      ;(display state) (newline) (newline)
+      (display this) (newline)
+    (callInterpreter (addToFrameNoCheck (prepStateForCall closure (caar lis) (cdr lis) continuations) 'this (box this)) (cadr (car lis)) continuations))))
 
 ;function call handler, seperates the function body from the closure that is stored in state and calls helper function
 ;seperate of parameters makes it easy to work with
 (define functionCallHandler
   (lambda (state lis continuations)
     (begin
+      (display "this") (newline)
       (display lis) (newline)
-    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations))))
+      ;(display (getState state 'this)) (newline)
+    (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations (getState state 'this)))))
 
 
 ;handles a function invokation by itself that is not a part of an expression list, this one is different because you need to evaluate the parameters
@@ -381,7 +400,7 @@
 (define functionCallHandlerMutate
   (lambda (state lis continuations)
     (begin
-    (functionCallHandler state (evalArgs state lis continuations) continuations)
+    (functionCallHandler state (evalArgs state lis continuations (lambda (v) v)) continuations)
     state)))
 
 (define classDefineHandler
@@ -411,10 +430,6 @@
 (define newHandler
   (lambda (state lis continuations)
     (begin
-      (display "newHandler")
-      (newline)
-      (display lis)
-      (newline)
     (createInstanceClosure (createState) (caar lis)))))
 
 (define createInstanceClosure
@@ -512,12 +527,6 @@
 (define sInterpreter
   (lambda (state parsed continuations)
     (begin
-      (display "interpret body")
-      (newline)
-      (display parsed)
-      (newline)
-      (display state)
-      (newline)
     (cond
       ((null? parsed) state)
       (else (sInterpreter (oMutate state (car parsed) continuations) (cdr parsed) continuations))))))
@@ -538,24 +547,36 @@
       (else ((getMutator (car lis)) state (cdr lis) continuations)))))
 
 (define dotHandler
-  (lambda (objectClosure key)
-    (getState objectClosure key)))
+  (lambda (state objectClosure key)
+    (begin
+      (updateState state (list 'this objectClosure))
+    (getState objectClosure key))))
     
 ;Mvalue - gets appropriate expression operator and calls it on contents
 (define oEval
   (lambda (state lis continuations)
+    (begin
+      ;(display "oEval") (newline)
+      ;(display state) (newline)
+      ;(display "lis data")
+      ;(display lis) (newline)
+      
     (cond
       ((null? lis) lis)
       ((not (list? lis)) (getState state lis))
-      ((eq? (car lis) 'dot) (dotHandler (oEval state (cadr lis) continuations) (caddr lis)))
-      (else ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations) continuations)))))
+      ((eq? (car lis) 'dot) (dotHandler state (oEval state (cadr lis) continuations) (caddr lis)))
+      (else (begin
+;(display "oEval") (newline)
+      ;(display lis) (newline)
+      ;(display (evalArgs state (cdr lis) continuations)) (newline)
+              ((getHandler (car lis)) state (evalArgs state (cdr lis) continuations (lambda (v) v)) continuations)))))))
 
 ;evaluates an arg list for oEval, generic function that works with abitrary number of parameters, unary, binary, more for function calls, etc
 (define evalArgs
-  (lambda (state lis continuations)
+  (lambda (state lis continuations return)
     (cond
-      ((null? lis) lis)
-      (else (cons (oEval state (car lis) continuations) (evalArgs state (cdr lis) continuations))))))
+      ((null? lis) (return lis))
+      (else (evalArgs state (cdr lis) continuations (lambda (v) (return (cons (oEval state (car lis) continuations) v ))))))))
 
 ;masks boolean returns to return non-scheme terms
 (define maskReturn
