@@ -52,12 +52,17 @@
   (lambda (state key value)
     (cons (list (cons key (caar state)) (cons value (cadar state))) (cdr state))))
 
+(define getStateWithContinuations
+  (lambda (state key continuations)
+    (getState state key)))
 ;state update and get
 (define getState
   (lambda (state key)
     (begin
-      ;(newline) (display state) (newline)
+      (newline) (display key) (newline)
+      
     (cond
+      ((and (list? key) (null? key)) key)
       ((and (null? (getStateNoCheckAssign state key)) (not (equal? key 'return))) (error "Variable must be assigned to before reference"))
       ;if variable is null, the unassigned value, throw error, otherwise return it
       (else (getStateNoCheckAssign state key))))))
@@ -187,9 +192,13 @@
 
 (define equalHandler
   (lambda (state lis continuations)
+    (begin
+      (display "equal") (newline)
+      (display (car lis)) (newline)
     (cond
+      ((or (list? (oEval state (car lis) continuations)) (list? (oEval state (cadr lis) continuations))) #f)
       ((equal? (oEval state (car lis) continuations) (oEval state (cadr lis) continuations)) #t)
-      (else #f))))
+      (else #f)))))
 
 (define invertBool
   (lambda (state val continuations)
@@ -269,8 +278,8 @@
 (define assignHandler
   (lambda (state lis continuations)
     (begin
-      ;(display "assign") (newline)
-      ;(display lis) (newline)
+      (display "assign") (newline)
+      (display lis) (newline)
     (cond
       ((and (list? (car lis)) (eq? (caar lis) 'dot)) (begin (assignHandler (getState state 'this) (list (caddar lis) (oEval state (cadr lis) continuations)) continuations) state))
       ((and (getStateNoCheckAssign state (car lis)) #f) (error "Variable cannot be assigned to before declaration")) ;condition never evaulates to true, only to raise error if not set 
@@ -493,7 +502,7 @@
       ((eq? operator '!) invertBool)
       ((eq? operator 'funcall) functionCallHandler)
       ((eq? operator 'new) newHandler)
-      (else getState))))
+      (else getStateWithContinuations))))
 
 
 ;helper for sInterpreter that ensures that it carries appropriate continuations (calls bootstrapContinuations)
