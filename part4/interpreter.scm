@@ -19,9 +19,9 @@
         ((or (and (null? def) (not (null? lis))) (and (null? lis) (not (null? def)))) (error "Parameter mismatch"))
       ((null? def) state)
       (else (begin
-              (display "function") (newline)
-              (display def) (newline)
-              (display lis) (newline)
+              ;(display "function") (newline)
+              ;(display def) (newline)
+              ;(display lis) (newline)
               ;(bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (oEval oldState (car lis) continuations)) (cadr state))) (cdr def) (cdr lis) continuations))))))
 (bootstrapFunctionParams oldState (list (cons (car def) (car state)) (cons (box (car lis)) (cadr state))) (cdr def) (cdr lis) continuations))))))
 
@@ -30,7 +30,7 @@
 ;creates the default state
 (define createState
   (lambda ()
-    (updateState (updateState (updateState '((() ())) '(true #t)) '(false #f)) '(this null))))
+    (updateState (updateState '((() ())) '(true #t)) '(false #f))))
 
 ;creates an empty state frame                                                       
 (define createStateFrame
@@ -55,10 +55,12 @@
 ;state update and get
 (define getState
   (lambda (state key)
+    (begin
+      ;(newline) (display state) (newline)
     (cond
       ((and (null? (getStateNoCheckAssign state key)) (not (equal? key 'return))) (error "Variable must be assigned to before reference"))
       ;if variable is null, the unassigned value, throw error, otherwise return it
-      (else (getStateNoCheckAssign state key)))))
+      (else (getStateNoCheckAssign state key))))))
 
 ;gets state without checking assignment
 (define getStateNoCheckAssign
@@ -73,7 +75,7 @@
   (lambda (state key)
     (cond
       ;((null? state) (display key))
-     ((null? state) (begin (display "Key test")(display key) (error "Variable must be declared before reference")))
+     ((null? state) (begin (display "Key ")(display key) (error "Variable must be declared before reference")))
      ((null? (caar state)) (getStateHelper (cdr state) key))
      ((eq? key (caaar state)) (unbox (caadar state)))
      (else (getStateHelper (cons (list (cdaar state) (cdadar state)) (cdr state)) key))))) 
@@ -373,9 +375,9 @@
 (define functionCallHelper
   (lambda (state lis closure continuations this)
     (begin
-      (display "function call") (newline)
+      ;(display "function call") (newline)
       ;(display state) (newline) (newline)
-      (display this) (newline)
+      ;(display this) (newline)
     ;(callInterpreter (addToFrameNoCheck (prepStateForCall closure (caar lis) (cdr lis) continuations) 'this (box this)) (cadr (car lis)) continuations))))
       (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations))))
 
@@ -384,8 +386,8 @@
 (define functionCallHandler
   (lambda (state lis continuations)
     (begin
-      (display "this") (newline)
-      (display lis) (newline)
+      ;(display "this") (newline)
+      ;(display lis) (newline)
       ;(display (getState state 'this)) (newline)
     (functionCallHelper state (cons (caar lis) (cdr lis)) (cadar lis) continuations (getState state 'this)))))
 
@@ -425,7 +427,7 @@
 (define newHandler
   (lambda (state lis continuations)
     (begin
-    (createInstanceClosure (createState) (caar lis)))))
+    (createInstanceClosure ((continuations 'stateCreate)) (caar lis)))))
 
 (define createInstanceClosure
   (lambda (state lis)
@@ -512,7 +514,8 @@
   (lambda (state parsed className)
     (call/cc
      (lambda (break)
-               (sInterpreter (bootstrapGlobal state parsed) (cadr (caadr (getState (bootstrapGlobal state parsed) className))) (bootstrapContinuations break))))))
+               (sInterpreter (updateState (bootstrapGlobal state parsed) (list 'this 'null)) (cadr (caadr (getState (bootstrapGlobal state parsed) className))) (continuationFactory (bootstrapContinuations break)
+                                                                                                                                                    'stateCreate (lambda () (bootstrapGlobal state parsed))))))))
     
 
 ;helper that sets continuations
