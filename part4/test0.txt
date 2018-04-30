@@ -12,9 +12,7 @@ class A {
   }
 
   function add(a) {
-    var test = new A();
-    test.setX(2400);
-    return this.x + test.x;
+    return this.x + a.x;
   }
 
   static function main() {
@@ -24,6 +22,6 @@ class A {
 
     a1.setX(30);
     
-    return a1.add(a2.x);
+    return a1.add(a2);
   }
 }

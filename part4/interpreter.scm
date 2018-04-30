@@ -262,12 +262,6 @@
       ((oEval state (car lis) continuations) (oMutate state (cadr lis) continuations))
       ((not (null? (cddr lis))) (oMutate state (caddr lis) continuations))
       (else state))))
-
-(define updateReference
-  (lambda (ref value)
-    (set-box! ref value)))
-
-;(define getReference
   
     
 (define assignHandler
@@ -382,7 +376,8 @@
       (display "function call") (newline)
       ;(display state) (newline) (newline)
       (display this) (newline)
-    (callInterpreter (addToFrameNoCheck (prepStateForCall closure (caar lis) (cdr lis) continuations) 'this (box this)) (cadr (car lis)) continuations))))
+    ;(callInterpreter (addToFrameNoCheck (prepStateForCall closure (caar lis) (cdr lis) continuations) 'this (box this)) (cadr (car lis)) continuations))))
+      (callInterpreter (prepStateForCall closure (caar lis) (cdr lis) continuations) (cadr (car lis)) continuations))))
 
 ;function call handler, seperates the function body from the closure that is stored in state and calls helper function
 ;seperate of parameters makes it easy to work with
@@ -434,8 +429,20 @@
 
 (define createInstanceClosure
   (lambda (state lis)
-    (bootstrapGlobal state lis)))
-    
+    (bootstrapInstanceClosure state lis)))
+
+;umbrella function that interpreter runs inside
+(define newInterpreter
+  (lambda (state parsed continuations)
+    (begin
+    (cond
+      ((null? parsed) state)
+      (else (newInterpreter (oMutate (updateState state (list 'this state)) (car parsed) continuations) (cdr parsed) continuations))))))
+
+;does the global bootstrapping
+(define bootstrapInstanceClosure
+  (lambda (state parsed)
+    (newInterpreter state parsed (lambda (v) v))))
     
 ;***********operation functions****************
 ;logistic functions that run the interpreter
@@ -549,7 +556,7 @@
 (define dotHandler
   (lambda (state objectClosure key)
     (begin
-      (updateState state (list 'this objectClosure))
+      ;(updateState state (list 'this objectClosure))
     (getState objectClosure key))))
     
 ;Mvalue - gets appropriate expression operator and calls it on contents
